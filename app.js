@@ -189,16 +189,95 @@ app.use("/api/trips", require("./src/routes/trip.routes"));
 io.on("connection", (socket) => {
   console.log("🔌 Client connected:", socket.id);
 
+  // ==========================================
+  // JOIN TRIP ROOM
+  // ==========================================
+
   socket.on("joinTrip", (shareToken) => {
-    socket.join(`trip:${shareToken}`);
+    if (!shareToken) {
+      return;
+    }
+
+    const room = `trip:${shareToken}`;
+
+    socket.join(room);
 
     console.log(
       `👤 ${socket.id} joined trip ${shareToken}`
     );
   });
 
+  // ==========================================
+  // LIVE LOCATION UPDATE
+  // ==========================================
+
+  socket.on("locationUpdate", (data) => {
+    try {
+      const {
+        shareToken,
+        latitude,
+        longitude,
+      } = data;
+
+      if (
+        !shareToken ||
+        latitude === undefined ||
+        longitude === undefined
+      ) {
+        console.log("❌ Invalid location update");
+
+        return;
+      }
+
+      const room = `trip:${shareToken}`;
+
+      console.log(
+        `📍 Location update for ${shareToken}:`,
+        latitude,
+        longitude
+      );
+
+      // Send location to everyone else
+      // inside this trip room
+      socket.to(room).emit("locationUpdated", {
+        latitude,
+        longitude,
+      });
+    } catch (error) {
+      console.error(
+        "❌ Location update error:",
+        error
+      );
+    }
+  });
+
+  // ==========================================
+  // STOP SHARING LOCATION
+  // ==========================================
+
+  socket.on("stopLocationSharing", (shareToken) => {
+    if (!shareToken) {
+      return;
+    }
+
+    const room = `trip:${shareToken}`;
+
+    socket.to(room).emit("locationSharingStopped");
+
+    console.log(
+      `🛑 Location sharing stopped for ${shareToken}`
+    );
+  });
+
+  // ==========================================
+  // DISCONNECT
+  // ==========================================
+
   socket.on("disconnect", () => {
-    console.log("🔌 Client disconnected:", socket.id);
+    console.log(
+      "🔌 Client disconnected:",
+      socket.id
+    );
   });
 });
 
