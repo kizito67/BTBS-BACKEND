@@ -6,8 +6,9 @@ const morgan = require("morgan");
 const http = require("http");
 const { Server } = require("socket.io");
 
-const app = express();
 
+const app = express();
+const Trip = require("./src/models/trip.model");
 const connectDB = require("./src/config/db");
 
 connectDB();
@@ -181,6 +182,10 @@ app.use(
   require("./src/routes/googlePlaces.routes")
 );
 app.use("/api/trips", require("./src/routes/trip.routes"));
+app.use(
+  "/api/listings",
+  require("./src/routes/listing.routes")
+);
 
 // ==========================================
 // SOCKET EVENTS
@@ -190,28 +195,55 @@ io.on("connection", (socket) => {
   console.log("🔌 Client connected:", socket.id);
 
   // ==========================================
-  // JOIN TRIP ROOM
+  // JOIN TRIP
   // ==========================================
 
-  socket.on("joinTrip", (shareToken) => {
-    if (!shareToken) {
-      return;
+  socket.on("joinTrip", async (shareToken) => {
+    try {
+      if (!shareToken) {
+        return;
+      }
+
+      const trip = await Trip.findOne({
+        shareToken,
+      });
+
+      if (!trip) {
+        socket.emit("tripError", {
+          message: "Trip not found",
+        });
+
+        return;
+      }
+
+      socket.join(`trip:${shareToken}`);
+
+      console.log(
+        `👤 ${socket.id} joined trip ${shareToken}`
+      );
+
+      // Immediately send the latest known location
+      // to the person who just joined
+      if (trip.currentLocation?.latitude !== undefined) {
+        socket.emit("locationUpdated", {
+          tripId: trip._id,
+          latitude: trip.currentLocation.latitude,
+          longitude: trip.currentLocation.longitude,
+          updatedAt: trip.currentLocation.updatedAt,
+        });
+      }
+
+    } catch (error) {
+      console.error("Join trip error:", error);
     }
-
-    const room = `trip:${shareToken}`;
-
-    socket.join(room);
-
-    console.log(
-      `👤 ${socket.id} joined trip ${shareToken}`
-    );
   });
 
+
   // ==========================================
-  // LIVE LOCATION UPDATE
+  // LIVE LOCATION
   // ==========================================
 
-  socket.on("locationUpdate", (data) => {
+  socket.on("locationUpdate", async (data) => {
     try {
       const {
         shareToken,
@@ -224,35 +256,65 @@ io.on("connection", (socket) => {
         latitude === undefined ||
         longitude === undefined
       ) {
-        console.log("❌ Invalid location update");
-
         return;
       }
 
-      const room = `trip:${shareToken}`;
+      // Validate coordinates
+      if (
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+      ) {
+        return;
+      }
 
-      console.log(
-        `📍 Location update for ${shareToken}:`,
-        latitude,
-        longitude
-      );
+      const trip = await Trip.findOne({
+        shareToken,
+      });
 
-      // Send location to everyone else
-      // inside this trip room
-      socket.to(room).emit("locationUpdated", {
+      if (!trip) {
+        return;
+      }
+
+      // Trip must be active
+      if (trip.status !== "active") {
+        return;
+      }
+
+      const updatedAt = new Date();
+
+      // Save latest known location
+      trip.currentLocation = {
         latitude,
         longitude,
-      });
+        updatedAt,
+      };
+
+      await trip.save();
+
+      // Broadcast to people watching the trip
+      socket.to(`trip:${shareToken}`).emit(
+        "locationUpdated",
+        {
+          tripId: trip._id,
+          latitude,
+          longitude,
+          updatedAt,
+        }
+      );
+
     } catch (error) {
       console.error(
-        "❌ Location update error:",
+        "Location update error:",
         error
       );
     }
   });
 
+
   // ==========================================
-  // STOP SHARING LOCATION
+  // STOP LOCATION SHARING
   // ==========================================
 
   socket.on("stopLocationSharing", (shareToken) => {
@@ -260,14 +322,15 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const room = `trip:${shareToken}`;
-
-    socket.to(room).emit("locationSharingStopped");
+    socket
+      .to(`trip:${shareToken}`)
+      .emit("locationSharingStopped");
 
     console.log(
       `🛑 Location sharing stopped for ${shareToken}`
     );
   });
+
 
   // ==========================================
   // DISCONNECT
