@@ -7,6 +7,8 @@ const {
     getMyListings,
     getPublicListings,
     getListingById,
+    updateListing,
+    deleteListing,
     uploadListingPhotos,
 } = require("../controllers/listing.controller");
 
@@ -43,6 +45,22 @@ router.post(
     protect,
     upload.array("photos", 5),
     uploadListingPhotos
+);
+
+// Update listing
+router.put(
+    "/:listingId",
+    protect,
+    requireActiveSubscription,
+    updateListing
+);
+
+// Delete listing
+router.delete(
+    "/:listingId",
+    protect,
+    requireActiveSubscription,
+    deleteListing
 );
 
 
