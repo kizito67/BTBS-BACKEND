@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    checkSubscriptionStatus,
+    getSubscriptionStatus,
 } = require("../controllers/subscription.controller");
 
 const {
@@ -13,7 +13,7 @@ const {
 router.get(
     "/status",
     protect,
-    checkSubscriptionStatus
+    getSubscriptionStatus
 );
 
 module.exports = router;

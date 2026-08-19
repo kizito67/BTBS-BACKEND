@@ -40,6 +40,10 @@ const businessSchema = new mongoose.Schema(
             enum: ["trial", "active", "expired"],
             default: "trial"
         },
+        subscriptionEndDate: {
+            type: Date,
+            
+        },
 
         boostCredits: {
             type: Number,

@@ -2,20 +2,6 @@ const Business = require("../models/business.model");
 
 const requireActiveSubscription = async (req, res, next) => {
     try {
-        if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                message: "Authentication required",
-            });
-        }
-
-        if (req.user.role !== "business") {
-            return res.status(403).json({
-                success: false,
-                message: "Only vendors can access this feature",
-            });
-        }
-
         const business = await Business.findOne({
             ownerId: req.user._id,
         });
@@ -33,50 +19,64 @@ const requireActiveSubscription = async (req, res, next) => {
         // FREE TRIAL
         // ==========================================
 
-        const isTrialActive =
-            business.subscriptionStatus === "trial" &&
-            business.trialEndDate &&
-            business.trialEndDate > now;
+        if (business.subscriptionStatus === "trial") {
 
-        if (isTrialActive) {
-            req.business = business;
+            // Trial has expired
+            if (
+                business.trialEndDate &&
+                business.trialEndDate <= now
+            ) {
+                business.subscriptionStatus = "expired";
+                business.isPremium = false;
+
+                await business.save();
+
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Your free trial has expired. Please subscribe to continue.",
+                });
+            }
+
+            // Trial is still active
             return next();
         }
 
         // ==========================================
-        // PREMIUM SUBSCRIPTION
+        // PAID SUBSCRIPTION
         // ==========================================
 
-        const isPremiumActive =
-            business.subscriptionStatus === "active" &&
-            business.isPremium === true &&
-            business.trialEndDate &&
-            business.trialEndDate > now;
+        if (business.subscriptionStatus === "active") {
 
-        if (isPremiumActive) {
-            req.business = business;
+            // Paid subscription has expired
+            if (
+                business.subscriptionEndDate &&
+                business.subscriptionEndDate <= now
+            ) {
+                business.subscriptionStatus = "expired";
+                business.isPremium = false;
+
+                await business.save();
+
+                return res.status(403).json({
+                    success: false,
+                    message:
+                        "Your premium subscription has expired. Please renew to continue.",
+                });
+            }
+
+            // Paid subscription still active
             return next();
         }
 
         // ==========================================
-        // TRIAL / PREMIUM EXPIRED
+        // EXPIRED
         // ==========================================
-
-        if (
-            business.subscriptionStatus === "trial" ||
-            business.subscriptionStatus === "active"
-        ) {
-            business.isPremium = false;
-            business.subscriptionStatus = "expired";
-
-            await business.save();
-        }
 
         return res.status(403).json({
             success: false,
             message:
-                "Your free trial has ended. Please subscribe to continue.",
-            subscriptionRequired: true,
+                "Your subscription has expired. Please subscribe to continue.",
         });
 
     } catch (error) {
@@ -95,4 +95,3 @@ const requireActiveSubscription = async (req, res, next) => {
 
 module.exports = {
     requireActiveSubscription,
-};

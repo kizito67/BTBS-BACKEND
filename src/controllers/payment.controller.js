@@ -207,39 +207,8 @@ const verifyPayment = async (req, res) => {
                 payment,
             });
         }
-
-        // ------------------------------------------
-        // Calculate subscription dates
-        // ------------------------------------------
-
-        const startDate = new Date();
-
-        const endDate = new Date(startDate);
-
-        if (payment.plan === "weekly") {
-            endDate.setDate(
-                endDate.getDate() + 7
-            );
-        }
-
-        if (payment.plan === "monthly") {
-            endDate.setDate(
-                endDate.getDate() + 30
-            );
-        }
-
-        // ------------------------------------------
-        // Update payment
-        // ------------------------------------------
-
-        payment.status = "success";
-        payment.paidAt = new Date();
-        payment.subscriptionStartDate = startDate;
-        payment.subscriptionEndDate = endDate;
-
-        await payment.save();
-
-        // ------------------------------------------
+        
+                // ------------------------------------------
         // Activate business premium
         // ------------------------------------------
 
@@ -256,9 +225,58 @@ const verifyPayment = async (req, res) => {
 
         business.isPremium = true;
         business.subscriptionStatus = "active";
-        business.trialEndDate = endDate;
+        business.subscriptionEndDate = endDate;
 
         await business.save();
+
+
+        // ------------------------------------------
+        // Calculate subscription dates
+        // ------------------------------------------
+
+        const now = new Date();
+
+// If the vendor already has an active subscription,
+// extend from the current expiry date.
+// Otherwise start from now.
+
+let startDate = now;
+
+if (
+    business.subscriptionStatus === "active" &&
+    business.subscriptionEndDate &&
+    business.subscriptionEndDate > now
+) {
+    startDate = new Date(
+        business.subscriptionEndDate
+    );
+}
+
+const endDate = new Date(startDate);
+
+if (payment.plan === "weekly") {
+    endDate.setDate(
+        endDate.getDate() + 7
+    );
+}
+
+if (payment.plan === "monthly") {
+    endDate.setDate(
+        endDate.getDate() + 30
+    );
+}
+
+        // ------------------------------------------
+        // Update payment
+        // ------------------------------------------
+
+        payment.status = "success";
+        payment.paidAt = new Date();
+        payment.subscriptionStartDate = startDate;
+        payment.subscriptionEndDate = endDate;
+
+        await payment.save();
+
 
         // ------------------------------------------
         // Success

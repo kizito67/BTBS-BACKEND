@@ -5,7 +5,8 @@ const Business = require("../models/business.model");
 
 const paystackWebhook = async (req, res) => {
     try {
-        const signature = req.headers["x-paystack-signature"];
+        const signature =
+            req.headers["x-paystack-signature"];
 
         if (!signature) {
             return res.status(401).json({
@@ -51,7 +52,8 @@ const paystackWebhook = async (req, res) => {
 
         const transaction = event.data;
 
-        const reference = transaction.reference;
+        const reference =
+            transaction.reference;
 
         // ==========================================
         // FIND PAYMENT
@@ -67,8 +69,6 @@ const paystackWebhook = async (req, res) => {
                 reference
             );
 
-            // Still return 200 so Paystack doesn't
-            // repeatedly send the webhook
             return res.sendStatus(200);
         }
 
@@ -89,7 +89,10 @@ const paystackWebhook = async (req, res) => {
         // VERIFY AMOUNT
         // ==========================================
 
-        if (transaction.amount !== payment.amount) {
+        if (
+            transaction.amount !==
+            payment.amount
+        ) {
             console.log(
                 "❌ Payment amount mismatch:",
                 reference
@@ -103,11 +106,46 @@ const paystackWebhook = async (req, res) => {
         }
 
         // ==========================================
+        // FIND BUSINESS
+        // ==========================================
+
+        const business =
+            await Business.findById(
+                payment.businessId
+            );
+
+        if (!business) {
+            console.log(
+                "⚠️ Business not found:",
+                payment.businessId
+            );
+
+            return res.sendStatus(200);
+        }
+
+        // ==========================================
         // CALCULATE SUBSCRIPTION
         // ==========================================
 
-        const startDate = new Date();
-        const endDate = new Date(startDate);
+        const now = new Date();
+
+        let startDate = now;
+
+        // If the vendor already has an active
+        // subscription, extend from its expiry.
+        if (
+            business.subscriptionStatus ===
+                "active" &&
+            business.subscriptionEndDate &&
+            business.subscriptionEndDate > now
+        ) {
+            startDate = new Date(
+                business.subscriptionEndDate
+            );
+        }
+
+        const endDate =
+            new Date(startDate);
 
         if (payment.plan === "weekly") {
             endDate.setDate(
@@ -126,7 +164,8 @@ const paystackWebhook = async (req, res) => {
         // ==========================================
 
         payment.status = "success";
-        payment.paidAt = new Date();
+
+        payment.paidAt = now;
 
         payment.subscriptionStartDate =
             startDate;
@@ -140,31 +179,24 @@ const paystackWebhook = async (req, res) => {
         // ACTIVATE PREMIUM
         // ==========================================
 
-        const business = await Business.findById(
-            payment.businessId
-        );
-
-        if (!business) {
-            console.log(
-                "⚠️ Business not found:",
-                payment.businessId
-            );
-
-            return res.sendStatus(200);
-        }
-
         business.isPremium = true;
 
         business.subscriptionStatus =
             "active";
 
-        business.trialEndDate = endDate;
+        business.subscriptionEndDate =
+            endDate;
 
         await business.save();
 
         console.log(
             "✅ Premium activated:",
             business.businessName
+        );
+
+        console.log(
+            "📦 Plan:",
+            payment.plan
         );
 
         console.log(
@@ -184,4 +216,5 @@ const paystackWebhook = async (req, res) => {
     }
 };
 
-module.exports = paystackWebhook;
+module.exports =
+    paystackWebhook;
