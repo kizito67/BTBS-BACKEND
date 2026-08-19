@@ -25,6 +25,12 @@ const PLANS = {
 
 const initializePayment = async (req, res) => {
     try {
+        console.log("========== PAYMENT REQUEST ==========");
+        console.log("BODY:", req.body);
+        console.log(
+            "CONTENT TYPE:",
+            req.headers["content-type"]
+        );
         const { plan } = req.body;
 
         // ------------------------------------------
