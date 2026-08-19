@@ -1,4 +1,5 @@
 const Route = require("../models/route.model");
+const Confirmation = require("../models/confirmation.model");
 
 // ==========================================
 // CREATE ROUTE
@@ -406,7 +407,7 @@ const updateRoute = async (req, res) => {
 
 const deleteRoute = async (req, res) => {
     try {
-        const route = await Route.findByIdAndDelete(req.params.id);
+        const route = await Route.findById(req.params.id);
 
         if (!route) {
             return res.status(404).json({
@@ -415,9 +416,15 @@ const deleteRoute = async (req, res) => {
             });
         }
 
+        // Delete associated confirmations
+        await Confirmation.deleteMany({ routeId: req.params.id });
+
+        // Delete the route
+        await Route.findByIdAndDelete(req.params.id);
+
         return res.status(200).json({
             success: true,
-            message: "Route deleted successfully",
+            message: "Route and associated confirmations deleted successfully",
         });
     } catch (error) {
         console.error("Delete route error:", error);
