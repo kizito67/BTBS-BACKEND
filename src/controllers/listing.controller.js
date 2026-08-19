@@ -1,6 +1,9 @@
 const Listing = require("../models/listing.model");
 const Business = require("../models/business.model");
+const ListingView = require("../models/listingView.model");
 const cloudinary = require("../config/cloudinary");
+const reverseGeocode =
+    require("../utils/reverseGeocode");
 
 // ==========================================
 // CREATE BUSINESS LISTING
@@ -329,7 +332,90 @@ const getListingById = async (req, res) => {
                 message: "Listing not found",
             });
         }
+        // ==========================================
+// RECORD LISTING VIEW
+// ==========================================
 
+let shouldRecordView = true;
+
+// ==========================================
+// PREVENT REPEATED VIEWS
+// ==========================================
+
+if (req.user?._id) {
+    const thirtyMinutesAgo = new Date(
+        Date.now() - 30 * 60 * 1000
+    );
+
+    const recentView =
+        await ListingView.findOne({
+            listingId: listing._id,
+            userId: req.user._id,
+            viewedAt: {
+                $gte: thirtyMinutesAgo,
+            },
+        });
+
+    if (recentView) {
+        shouldRecordView = false;
+    }
+}
+
+// ==========================================
+// SAVE VIEW
+// ==========================================
+
+if (shouldRecordView) {
+
+    const latitude = req.query.lat
+        ? Number(req.query.lat)
+        : null;
+
+    const longitude = req.query.lng
+        ? Number(req.query.lng)
+        : null;
+
+    let locationInfo = null;
+
+    // ==========================================
+    // REVERSE GEOCODE
+    // ==========================================
+
+    if (
+        latitude !== null &&
+        longitude !== null
+    ) {
+        locationInfo =
+            await reverseGeocode(
+                latitude,
+                longitude
+            );
+    }
+
+    // ==========================================
+    // SAVE VIEW
+    // ==========================================
+
+    await ListingView.create({
+        listingId: listing._id,
+
+        businessId:
+            listing.businessId._id,
+
+        userId:
+            req.user?._id || null,
+
+        location: {
+            lat: latitude,
+
+            lng: longitude,
+
+            area:
+                locationInfo?.area ||
+                null,
+        },
+    });
+}
         return res.status(200).json({
             success: true,
             listing: {

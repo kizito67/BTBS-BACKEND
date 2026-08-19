@@ -149,7 +149,6 @@ tripSchema.pre("save", function (next) {
             .randomBytes(16)
             .toString("hex");
     }
-    next();
 });
 
 module.exports = mongoose.model("Trip", tripSchema);

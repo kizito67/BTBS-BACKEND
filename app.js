@@ -206,6 +206,14 @@ app.use(
   "/api/subscription",
   require("./src/routes/subscription.routes")
 );
+app.use(
+    "/api/analytics",
+    require("./src/routes/analytics.routes")
+);
+app.use(
+    "/api/reviews",
+    require("./src/routes/review.routes")
+);
 // ==========================================
 // SOCKET EVENTS
 // ==========================================
