@@ -31,7 +31,6 @@ router.post(
         next();
     },
     protect,
-    authorize("business", "admin"),
     RouteValidator.createRouteValidation,
     validate,
     routeController.createRoute
