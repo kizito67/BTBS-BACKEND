@@ -207,12 +207,12 @@ app.use(
   require("./src/routes/subscription.routes")
 );
 app.use(
-    "/api/analytics",
-    require("./src/routes/analytics.routes")
+  "/api/analytics",
+  require("./src/routes/analytics.routes")
 );
 app.use(
-    "/api/reviews",
-    require("./src/routes/review.routes")
+  "/api/reviews",
+  require("./src/routes/review.routes")
 );
 // ==========================================
 // SOCKET EVENTS
@@ -272,6 +272,7 @@ io.on("connection", (socket) => {
 
   socket.on("locationUpdate", async (data) => {
     try {
+      console.log("📍 Location received:", data);
       const {
         shareToken,
         latitude,
