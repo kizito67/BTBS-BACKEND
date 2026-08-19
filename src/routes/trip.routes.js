@@ -14,6 +14,7 @@ const {
     shareTrip,
     getPublicTrip,
     updateTripLocation,
+    getTripLocation,
 } = require("../controllers/trip.controller");
 
 
@@ -24,6 +25,10 @@ router.post(
     createTrip
 );
 
+router.get(
+    "/:shareToken/location",
+    getTripLocation
+);
 
 // Get trip
 router.get(
@@ -64,5 +69,6 @@ router.get(
     "/public/:shareToken",
     getPublicTrip
 );
+
 
 module.exports = router;

@@ -462,6 +462,81 @@ const updateTripLocation = async (req, res) => {
         });
     }
 };
+const getTripLocation = async (req, res) => {
+    try {
+        const { shareToken } = req.params;
+
+        if (!shareToken) {
+            return res.status(400).json({
+                success: false,
+                message: "Share token is required",
+            });
+        }
+
+        const trip = await Trip.findOne({
+            shareToken,
+        }).select(
+            "_id shareToken status currentLocation"
+        );
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found",
+            });
+        }
+
+        // ==========================================
+        // NO LOCATION YET
+        // ==========================================
+
+        if (
+            !trip.currentLocation ||
+            trip.currentLocation.latitude === undefined ||
+            trip.currentLocation.longitude === undefined
+        ) {
+            return res.status(200).json({
+                success: true,
+                message: "Location is not available yet",
+                location: null,
+                status: trip.status,
+            });
+        }
+
+        // ==========================================
+        // RETURN CURRENT LOCATION
+        // ==========================================
+
+        return res.status(200).json({
+            success: true,
+
+            location: {
+                latitude:
+                    trip.currentLocation.latitude,
+
+                longitude:
+                    trip.currentLocation.longitude,
+
+                updatedAt:
+                    trip.currentLocation.updatedAt,
+            },
+
+            status: trip.status,
+        });
+
+    } catch (error) {
+        console.error(
+            "Get trip location error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Error fetching trip location",
+            error: error.message,
+        });
+    }
+};
 
 module.exports = {
     createTrip,
@@ -471,4 +546,5 @@ module.exports = {
     shareTrip,
     getPublicTrip,
     updateTripLocation,
+    getTripLocation,
 };
