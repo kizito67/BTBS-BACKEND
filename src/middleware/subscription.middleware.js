@@ -95,3 +95,4 @@ const requireActiveSubscription = async (req, res, next) => {
 
 module.exports = {
     requireActiveSubscription,
+};
