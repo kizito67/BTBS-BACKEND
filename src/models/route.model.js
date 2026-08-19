@@ -1,4 +1,3 @@
-console.log("🔥🔥🔥 ROUTE MODEL FILE LOADED 🔥🔥🔥");
 const mongoose = require("mongoose");
 
 const routeSchema = new mongoose.Schema(

@@ -15,6 +15,7 @@
     "@getbrevo/brevo": "^6.0.3",
     "axios": "^1.19.0",
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.10.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "ejs": "^3.1.10",
@@ -25,12 +26,11 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.1",
     "morgan": "^1.11.0",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.5",
     "resend": "^6.19.0",
     "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
-    "cloudinary": "^2.7.0",
-    "multer": "^2.0.2"
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

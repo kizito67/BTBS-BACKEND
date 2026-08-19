@@ -341,10 +341,10 @@ const updateConfirmation = async (req, res) => {
         // Define allowed fields for update
         const allowedFields = ['confirmedFare', 'fareFairness', 'everOvercharged', 'easeFindingTransport', 'notes'];
         const adminOnlyFields = ['isVerified', 'reportSource'];
-        
+
         // Build update object with only allowed fields
         const updateData = {};
-        
+
         for (const field of allowedFields) {
             if (req.body[field] !== undefined) {
                 updateData[field] = req.body[field];
@@ -459,31 +459,6 @@ const updateConfirmation = async (req, res) => {
     }
 };
 
-
-const updateConfirmation = async (req, res) => {
-    console.log("=== UPDATE CONFIRMATION ===");
-    console.log(req.params);
-    console.log(req.originalUrl);
-    try {
-        const { confirmedFare, verificationStatus } = req.body;
-
-        console.log('Params:', req.params);
-
-        const confirmation = await Confirmation.findById(req.params.confirmationId);
-        console.log('Found:', confirmation);
-        if (!confirmation) {
-            return res.status(404).json({ message: 'Confirmation not found' });
-        }
-        if (confirmation.userId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-            return res.status(403).json({ message: 'You are not authorized to update this confirmation' });
-        }
-        confirmation.confirmedFare = req.body.confirmedFare || confirmation.confirmedFare;
-        await confirmation.save();
-        res.status(200).json({ message: 'Confirmation updated', confirmation });
-    } catch (error) {
-        res.status(500).json({ message: 'Error updating confirmation', error });
-    }
-};
 
 
 const deleteConfirmation = async (req, res) => {
