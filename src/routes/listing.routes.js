@@ -14,11 +14,15 @@ const {
     protect,
 } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
+const {
+    requireActiveSubscription,
+} = require("../middleware/subscription.middleware");
 
 
 router.post(
     "/",
     protect,
+    requireActiveSubscription,
     createListing
 );
 
@@ -30,21 +34,21 @@ router.get(
 );
 
 router.get(
-  "/",
-  getPublicListings
+    "/",
+    getPublicListings
 );
 
 router.post(
-  "/upload",
-  protect,
-  upload.array("photos", 5),
-  uploadListingPhotos
+    "/upload",
+    protect,
+    upload.array("photos", 5),
+    uploadListingPhotos
 );
 
 
 router.get(
-  "/:listingId",
-  getListingById
+    "/:listingId",
+    getListingById
 );
 
 
