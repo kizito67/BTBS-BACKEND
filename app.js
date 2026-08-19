@@ -31,7 +31,15 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      if (req.originalUrl === "/api/webhooks/paystack") {
+        req.rawBody = buf;
+      }
+    },
+  })
+);
 
 // ==========================================
 // API DOCUMENTATION
@@ -186,7 +194,18 @@ app.use(
   "/api/listings",
   require("./src/routes/listing.routes")
 );
-
+app.use(
+  "/api/payments",
+  require("./src/routes/payment.routes")
+);
+app.use(
+  "/api/webhooks",
+  require("./src/routes/paymentWebhook.routes")
+);
+app.use(
+  "/api/subscription",
+  require("./src/routes/subscription.routes")
+);
 // ==========================================
 // SOCKET EVENTS
 // ==========================================
