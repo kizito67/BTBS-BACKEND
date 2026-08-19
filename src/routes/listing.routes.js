@@ -26,6 +26,11 @@ router.get(
     getMyListings
 );
 
+router.get(
+  "/",
+  getPublicListings
+);
+
 
 
 
