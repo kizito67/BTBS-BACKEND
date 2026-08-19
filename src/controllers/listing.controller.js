@@ -1,6 +1,6 @@
 const Listing = require("../models/listing.model");
 const Business = require("../models/business.model");
-
+const cloudinary = require("../config/cloudinary");
 
 // ==========================================
 // CREATE BUSINESS LISTING
@@ -455,10 +455,109 @@ const getDistanceInKm = (
 
   return earthRadius * c;
 };
+// ==========================================
+// GET SINGLE PUBLIC LISTING
+// ==========================================
 
+const getListingById = async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.listingId)
+      .populate({
+        path: "businessId",
+        select: "businessName category ownerId isPremium subscriptionStatus",
+      });
+
+    if (!listing) {
+      return res.status(404).json({
+        success: false,
+        message: "Listing not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      listing: {
+        _id: listing._id,
+        businessName: listing.businessId.businessName,
+        category: listing.businessId.category,
+        description: listing.description,
+        location: listing.location,
+        photoUrls: listing.photoUrls,
+        vendorId: listing.businessId.ownerId,
+        isPremium: listing.businessId.isPremium,
+        subscriptionStatus:
+          listing.businessId.subscriptionStatus,
+        createdAt: listing.createdAt,
+        updatedAt: listing.updatedAt,
+      },
+    });
+
+  } catch (error) {
+    console.error("Get listing error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching listing",
+      error: error.message,
+    });
+  }
+};
+
+
+// ==========================================
+// UPLOAD LISTING PHOTOS
+// ==========================================
+
+const uploadListingPhotos = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No photos were uploaded",
+      });
+    }
+
+    const uploadPromises = req.files.map((file) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "btbs/listings",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result.secure_url);
+            }
+          }
+        );
+
+        stream.end(file.buffer);
+      });
+    });
+
+    const urls = await Promise.all(uploadPromises);
+
+    return res.status(200).json({
+      success: true,
+      urls,
+    });
+
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error uploading photos",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
     createListing,
     getMyListings,    
     getPublicListings,
-    
+    getListingById,
+    uploadListingPhotos,
 };
