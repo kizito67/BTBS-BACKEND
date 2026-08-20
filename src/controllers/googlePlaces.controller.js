@@ -22,7 +22,7 @@ const searchLocations = async (req, res) => {
             });
         }
 
-        const places = await searchGooglePlaces(query);
+        const places = await autocompleteGooglePlaces(query);
 
         return res.status(200).json({
             success: true,
