@@ -9,6 +9,7 @@ const createRoute = async (req, res) => {
     try {
         console.log("🔥 CREATE ROUTE HIT");
         console.log("🔥 REQUEST BODY:", req.body);
+
         const {
             origin,
             destination,
@@ -21,77 +22,434 @@ const createRoute = async (req, res) => {
             averageFare,
         } = req.body;
 
-        console.log("🔥 ORIGIN RECEIVED:", origin);
-        console.log("🔥 DESTINATION RECEIVED:", destination);
+        // ==========================================
+        // VALIDATE ORIGIN
+        // ==========================================
+
+        if (!origin || typeof origin !== "object") {
+            return res.status(400).json({
+                success: false,
+                message: "Origin must be an object",
+            });
+        }
+
+        if (
+            !origin.placeId ||
+            !origin.name ||
+            origin.lat === undefined ||
+            origin.lng === undefined
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Origin must contain placeId, name, lat and lng",
+            });
+        }
+
+        const originLat = Number(origin.lat);
+        const originLng = Number(origin.lng);
+
+        if (
+            !Number.isFinite(originLat) ||
+            !Number.isFinite(originLng)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid origin coordinates",
+            });
+        }
+
+        if (
+            originLat < -90 ||
+            originLat > 90 ||
+            originLng < -180 ||
+            originLng > 180
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid origin coordinates",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE DESTINATION
+        // ==========================================
+
+        if (
+            !destination ||
+            typeof destination !== "object"
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Destination must be an object",
+            });
+        }
+
+        if (
+            !destination.placeId ||
+            !destination.name ||
+            destination.lat === undefined ||
+            destination.lng === undefined
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Destination must contain placeId, name, lat and lng",
+            });
+        }
+
+        const destinationLat = Number(destination.lat);
+        const destinationLng = Number(destination.lng);
+
+        if (
+            !Number.isFinite(destinationLat) ||
+            !Number.isFinite(destinationLng)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid destination coordinates",
+            });
+        }
+
+        if (
+            destinationLat < -90 ||
+            destinationLat > 90 ||
+            destinationLng < -180 ||
+            destinationLng > 180
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid destination coordinates",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE VEHICLE
+        // ==========================================
+
+        if (!vehicleType) {
+            return res.status(400).json({
+                success: false,
+                message: "Vehicle type is required",
+            });
+        }
+
+        const normalizedVehicleType =
+            vehicleType.toLowerCase();
+
+        const allowedVehicles = [
+            "bus",
+            "keke",
+            "taxi",
+        ];
+
+        if (
+            !allowedVehicles.includes(
+                normalizedVehicleType
+            )
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Vehicle type must be bus, keke, or taxi",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE BOARDING POINT
+        // ==========================================
+
+        if (
+            !boardingPoint ||
+            typeof boardingPoint !== "object"
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Boarding point is required",
+            });
+        }
+
+        if (!boardingPoint.name) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Boarding point must contain name",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE DROP-OFF POINT
+        // ==========================================
+
+        if (
+            !dropOffPoint ||
+            typeof dropOffPoint !== "object"
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Drop-off point is required",
+            });
+        }
+
+        if (!dropOffPoint.name) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Drop-off point must contain name",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE TRANSFER POINT
+        // ==========================================
+
+        if (transferPoint !== undefined) {
+            if (
+                transferPoint === null ||
+                typeof transferPoint !== "object"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Transfer point must be an object",
+                });
+            }
+
+            if (!transferPoint.name) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Transfer point must contain name",
+                });
+            }
+        }
+
+        // ==========================================
+        // VALIDATE FARES
+        // ==========================================
+
+        const low = Number(fareLow);
+        const high = Number(fareHigh);
+
+        if (
+            !Number.isFinite(low) ||
+            !Number.isFinite(high)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "fareLow and fareHigh must be valid numbers",
+            });
+        }
+
+        if (low < 0 || high < 0) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Fare values cannot be negative",
+            });
+        }
+
+        if (high < low) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "fareHigh cannot be lower than fareLow",
+            });
+        }
+
+        // ==========================================
+        // CALCULATE AVERAGE FARE
+        // ==========================================
 
         const calculatedAverageFare =
             averageFare !== undefined
-                ? averageFare
-                : (Number(fareLow) + Number(fareHigh)) / 2;
+                ? Number(averageFare)
+                : (low + high) / 2;
+
+        if (
+            !Number.isFinite(
+                calculatedAverageFare
+            ) ||
+            calculatedAverageFare < 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Average fare must be a valid number",
+            });
+        }
+
+        // ==========================================
+        // CREATE ROUTE DATA
+        // ==========================================
 
         const routeData = {
             origin: {
                 placeId: origin.placeId,
                 name: origin.name,
+                lat: originLat,
+                lng: originLng,
             },
 
             destination: {
                 placeId: destination.placeId,
                 name: destination.name,
+                lat: destinationLat,
+                lng: destinationLng,
             },
 
-            vehicleType: vehicleType.toLowerCase(),
+            vehicleType:
+                normalizedVehicleType,
 
             boardingPoint: {
-                placeId: boardingPoint?.placeId,
+                placeId:
+                    boardingPoint.placeId ||
+                    undefined,
                 name: boardingPoint.name,
             },
 
             transferPoint: transferPoint
                 ? {
-                    placeId: transferPoint.placeId,
-                    name: transferPoint.name,
-                }
+                      placeId:
+                          transferPoint.placeId ||
+                          undefined,
+                      name: transferPoint.name,
+                  }
                 : undefined,
 
             dropOffPoint: {
-                placeId: dropOffPoint?.placeId,
+                placeId:
+                    dropOffPoint.placeId ||
+                    undefined,
                 name: dropOffPoint.name,
             },
 
-            fareLow: Number(fareLow),
-            fareHigh: Number(fareHigh),
-            averageFare: calculatedAverageFare,
+            fareLow: low,
+
+            fareHigh: high,
+
+            averageFare:
+                calculatedAverageFare,
 
             totalConfirmations: 0,
+
             confidenceScore: 0,
-            confidenceLevel: "Unconfirmed",
+
+            confidenceLevel:
+                "Unconfirmed",
 
             createdBy: req.user._id,
         };
 
-        console.log("🔥 FINAL ROUTE DATA:");
-        console.log(JSON.stringify(routeData, null, 2));
+        console.log(
+            "🔥 FINAL ROUTE DATA:"
+        );
 
-        const newRoute = await Route.create(routeData);
+        console.log(
+            JSON.stringify(
+                routeData,
+                null,
+                2
+            )
+        );
 
-        console.log("🔥 ROUTE CREATED:", newRoute);
+        // ==========================================
+        // SAVE ROUTE
+        // ==========================================
+
+        const newRoute =
+            await Route.create(routeData);
+
+        console.log(
+            "🔥 ROUTE CREATED:",
+            newRoute._id
+        );
+
+        // ==========================================
+        // RESPONSE
+        // ==========================================
 
         return res.status(201).json({
             success: true,
-            message: "Route created successfully",
-            route: newRoute,
+
+            message:
+                "Route created successfully",
+
+            route: {
+                id: newRoute._id,
+
+                origin:
+                    newRoute.origin,
+
+                destination:
+                    newRoute.destination,
+
+                vehicleType:
+                    newRoute.vehicleType,
+
+                boardingPoint:
+                    newRoute.boardingPoint,
+
+                transferPoint:
+                    newRoute.transferPoint ||
+                    null,
+
+                dropOffPoint:
+                    newRoute.dropOffPoint,
+
+                fare: {
+                    low:
+                        newRoute.fareLow,
+
+                    high:
+                        newRoute.fareHigh,
+
+                    average:
+                        newRoute.averageFare,
+                },
+
+                confidence: {
+                    score:
+                        newRoute.confidenceScore,
+
+                    level:
+                        newRoute.confidenceLevel,
+                },
+
+                totalConfirmations:
+                    newRoute.totalConfirmations,
+
+                createdBy:
+                    newRoute.createdBy,
+
+                createdAt:
+                    newRoute.createdAt,
+
+                updatedAt:
+                    newRoute.updatedAt,
+            },
         });
+
     } catch (error) {
-        console.error("🔥 CREATE ROUTE ERROR:", error);
+        console.error(
+            "🔥 CREATE ROUTE ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "Error creating route",
-            error: error.message,
+
+            message:
+                "Error creating route",
+
+            error:
+                error.message,
         });
     }
 };
+
+
 // ==========================================
 // SEARCH ROUTES
 // ==========================================
@@ -102,178 +460,518 @@ const searchRoutes = async (req, res) => {
 
     try {
         const {
-            originPlaceId,
-            destinationPlaceId,
+            originLat,
+            originLng,
+            destinationLat,
+            destinationLng,
             vehicleType,
+            radius,
         } = req.query;
 
-        // =========================
-        // VALIDATION
-        // =========================
+        // ==========================================
+        // VALIDATE REQUIRED COORDINATES
+        // ==========================================
 
-        if (!originPlaceId) {
+        if (
+            originLat === undefined ||
+            originLng === undefined
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Origin is required",
+                message: "Origin coordinates are required",
             });
         }
 
-        if (!destinationPlaceId) {
+        if (
+            destinationLat === undefined ||
+            destinationLng === undefined
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Destination is required",
+                message:
+                    "Destination coordinates are required",
             });
         }
 
-        // =========================
-        // BUILD FILTER
-        // =========================
+        // ==========================================
+        // CONVERT TO NUMBERS
+        // ==========================================
 
-        const filter = {
-            "origin.placeId": originPlaceId,
-            "destination.placeId": destinationPlaceId,
-        };
+        const userOriginLat = Number(originLat);
+        const userOriginLng = Number(originLng);
+
+        const userDestinationLat =
+            Number(destinationLat);
+
+        const userDestinationLng =
+            Number(destinationLng);
+
+        // ==========================================
+        // VALIDATE NUMBERS
+        // ==========================================
+
+        if (
+            !Number.isFinite(userOriginLat) ||
+            !Number.isFinite(userOriginLng) ||
+            !Number.isFinite(userDestinationLat) ||
+            !Number.isFinite(userDestinationLng)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Coordinates must be valid numbers",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE ORIGIN RANGE
+        // ==========================================
+
+        if (
+            userOriginLat < -90 ||
+            userOriginLat > 90 ||
+            userOriginLng < -180 ||
+            userOriginLng > 180
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Invalid origin coordinates",
+            });
+        }
+
+        // ==========================================
+        // VALIDATE DESTINATION RANGE
+        // ==========================================
+
+        if (
+            userDestinationLat < -90 ||
+            userDestinationLat > 90 ||
+            userDestinationLng < -180 ||
+            userDestinationLng > 180
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Invalid destination coordinates",
+            });
+        }
+
+        // ==========================================
+        // SEARCH RADIUS
+        // ==========================================
+
+        let searchRadiusKm = 5;
+
+        if (radius !== undefined) {
+            const requestedRadius = Number(radius);
+
+            if (
+                !Number.isFinite(requestedRadius) ||
+                requestedRadius <= 0
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Radius must be a positive number",
+                });
+            }
+
+            // Prevent extremely large searches
+            searchRadiusKm = Math.min(
+                requestedRadius,
+                20
+            );
+        }
+
+        // ==========================================
+        // BUILD DATABASE FILTER
+        // ==========================================
+
+        const filter = {};
 
         if (vehicleType) {
-            filter.vehicleType =
+            const normalizedVehicleType =
                 vehicleType.toLowerCase();
+
+            const allowedVehicles = [
+                "bus",
+                "keke",
+                "taxi",
+            ];
+
+            if (
+                !allowedVehicles.includes(
+                    normalizedVehicleType
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Vehicle type must be bus, keke, or taxi",
+                });
+            }
+
+            filter.vehicleType =
+                normalizedVehicleType;
         }
 
-        // =========================
-        // FIND ROUTES
-        // =========================
+        // ==========================================
+        // GET ROUTES
+        // ==========================================
 
         const routes = await Route.find(filter)
             .lean();
 
+        // ==========================================
+        // DISTANCE FUNCTION
+        // ==========================================
+
+        const getDistanceInKm = (
+            lat1,
+            lng1,
+            lat2,
+            lng2
+        ) => {
+            const earthRadius = 6371;
+
+            const dLat =
+                ((lat2 - lat1) * Math.PI) / 180;
+
+            const dLng =
+                ((lng2 - lng1) * Math.PI) / 180;
+
+            const lat1Rad =
+                (lat1 * Math.PI) / 180;
+
+            const lat2Rad =
+                (lat2 * Math.PI) / 180;
+
+            const a =
+                Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1Rad) *
+                    Math.cos(lat2Rad) *
+                    Math.sin(dLng / 2) ** 2;
+
+            const c =
+                2 *
+                Math.atan2(
+                    Math.sqrt(a),
+                    Math.sqrt(1 - a)
+                );
+
+            return earthRadius * c;
+        };
 
         // ==========================================
-        // BEST ROUTE RECOMMENDATION
+        // FIND MATCHING ROUTES
         // ==========================================
 
-        routes.sort((a, b) => {
+        const matchedRoutes = routes
+            .map((route) => {
 
-            // 1. Confidence score
+                // Route must have valid coordinates
+                if (
+                    !route.origin ||
+                    !route.destination ||
+                    !Number.isFinite(
+                        route.origin.lat
+                    ) ||
+                    !Number.isFinite(
+                        route.origin.lng
+                    ) ||
+                    !Number.isFinite(
+                        route.destination.lat
+                    ) ||
+                    !Number.isFinite(
+                        route.destination.lng
+                    )
+                ) {
+                    return null;
+                }
+
+                // Distance from user's origin
+                // to route's origin
+                const originDistance =
+                    getDistanceInKm(
+                        userOriginLat,
+                        userOriginLng,
+                        route.origin.lat,
+                        route.origin.lng
+                    );
+
+                // Distance from user's destination
+                // to route's destination
+                const destinationDistance =
+                    getDistanceInKm(
+                        userDestinationLat,
+                        userDestinationLng,
+                        route.destination.lat,
+                        route.destination.lng
+                    );
+
+                // Combined distance
+                const totalDistance =
+                    originDistance +
+                    destinationDistance;
+
+                return {
+                    route,
+                    originDistance,
+                    destinationDistance,
+                    totalDistance,
+                };
+            })
+            .filter(Boolean)
+
+            // ==========================================
+            // ONLY KEEP NEARBY ROUTES
+            // ==========================================
+
+            .filter((item) => {
+                return (
+                    item.originDistance <=
+                        searchRadiusKm &&
+                    item.destinationDistance <=
+                        searchRadiusKm
+                );
+            });
+
+        // ==========================================
+        // SORT ROUTES
+        // ==========================================
+
+        matchedRoutes.sort((a, b) => {
+
+            // ------------------------------------------
+            // 1. TOTAL DISTANCE
+            // ------------------------------------------
+
             if (
-                b.confidenceScore !==
-                a.confidenceScore
+                a.totalDistance !==
+                b.totalDistance
             ) {
                 return (
-                    b.confidenceScore -
-                    a.confidenceScore
+                    a.totalDistance -
+                    b.totalDistance
                 );
             }
 
+            // ------------------------------------------
+            // 2. CONFIDENCE SCORE
+            // ------------------------------------------
 
-            // 2. Lower average fare
             if (
-                b.averageFare !==
-                a.averageFare
+                b.route.confidenceScore !==
+                a.route.confidenceScore
             ) {
                 return (
-                    a.averageFare -
-                    b.averageFare
+                    b.route.confidenceScore -
+                    a.route.confidenceScore
                 );
             }
 
+            // ------------------------------------------
+            // 3. CONFIRMATIONS
+            // ------------------------------------------
 
-            // 3. More confirmations
             return (
-                b.totalConfirmations -
-                a.totalConfirmations
+                b.route.totalConfirmations -
+                a.route.totalConfirmations
             );
         });
-        // =========================
+
+        // ==========================================
         // FORMAT RESPONSE
-        // =========================
+        // ==========================================
 
-        const formattedRoutes = routes.map(
-            (route, index) => ({
-                id: route._id,
-                recommended: index === 0,
+        const formattedRoutes =
+            matchedRoutes.map(
+                (item, index) => {
 
-                origin: {
-                    placeId: route.origin.placeId,
-                    name: route.origin.name,
-                },
+                    const route =
+                        item.route;
 
-                destination: {
-                    placeId: route.destination.placeId,
-                    name: route.destination.name,
-                },
+                    return {
+                        id: route._id,
 
-                vehicleType:
-                    route.vehicleType,
+                        recommended:
+                            index === 0,
 
-                // =====================
-                // ROUTE GUIDANCE
-                // =====================
+                        // ==================================
+                        // MATCH INFORMATION
+                        // ==================================
 
-                guidance: {
-                    boarding:
-                        route.boardingPoint?.name ||
-                        null,
+                        match: {
+                            originDistanceKm:
+                                Number(
+                                    item.originDistance.toFixed(
+                                        2
+                                    )
+                                ),
 
-                    transfer:
-                        route.transferPoint?.name ||
-                        null,
+                            destinationDistanceKm:
+                                Number(
+                                    item.destinationDistance.toFixed(
+                                        2
+                                    )
+                                ),
 
-                    dropOff:
-                        route.dropOffPoint?.name ||
-                        null,
-                },
+                            totalDistanceKm:
+                                Number(
+                                    item.totalDistance.toFixed(
+                                        2
+                                    )
+                                ),
+                        },
 
-                // =====================
-                // FARE
-                // =====================
+                        // ==================================
+                        // ORIGIN
+                        // ==================================
 
-                fare: {
-                    low: route.fareLow,
+                        origin: {
+                            placeId:
+                                route.origin.placeId,
 
-                    high: route.fareHigh,
+                            name:
+                                route.origin.name,
 
-                    average:
-                        route.averageFare,
-                },
+                            lat:
+                                route.origin.lat,
 
-                // =====================
-                // CONFIDENCE
-                // =====================
+                            lng:
+                                route.origin.lng,
+                        },
 
-                confidence: {
-                    score:
-                        route.confidenceScore,
+                        // ==================================
+                        // DESTINATION
+                        // ==================================
 
-                    level:
-                        route.confidenceLevel,
-                },
+                        destination: {
+                            placeId:
+                                route.destination
+                                    .placeId,
 
-                // =====================
-                // CONFIRMATIONS
-                // =====================
+                            name:
+                                route.destination
+                                    .name,
 
-                totalConfirmations:
-                    route.totalConfirmations,
+                            lat:
+                                route.destination
+                                    .lat,
 
-                lastConfirmedAt:
-                    route.lastConfirmedAt,
+                            lng:
+                                route.destination
+                                    .lng,
+                        },
 
-                createdAt:
-                    route.createdAt,
+                        // ==================================
+                        // VEHICLE
+                        // ==================================
 
-                updatedAt:
-                    route.updatedAt,
-            }));
+                        vehicleType:
+                            route.vehicleType,
 
-        // =========================
-        // RESPONSE
-        // =========================
+                        // ==================================
+                        // ROUTE GUIDANCE
+                        // ==================================
+
+                        guidance: {
+                            boarding:
+                                route.boardingPoint
+                                    ?.name || null,
+
+                            transfer:
+                                route.transferPoint
+                                    ?.name || null,
+
+                            dropOff:
+                                route.dropOffPoint
+                                    ?.name || null,
+                        },
+
+                        // ==================================
+                        // FARE
+                        // ==================================
+
+                        fare: {
+                            low:
+                                route.fareLow,
+
+                            high:
+                                route.fareHigh,
+
+                            average:
+                                route.averageFare,
+                        },
+
+                        // ==================================
+                        // CONFIDENCE
+                        // ==================================
+
+                        confidence: {
+                            score:
+                                route.confidenceScore,
+
+                            level:
+                                route.confidenceLevel,
+                        },
+
+                        // ==================================
+                        // CONFIRMATIONS
+                        // ==================================
+
+                        totalConfirmations:
+                            route.totalConfirmations,
+
+                        lastConfirmedAt:
+                            route.lastConfirmedAt,
+
+                        createdAt:
+                            route.createdAt,
+
+                        updatedAt:
+                            route.updatedAt,
+                    };
+                }
+            );
+
+        // ==========================================
+        // NO ROUTES FOUND
+        // ==========================================
+
+        if (
+            formattedRoutes.length === 0
+        ) {
+            return res.status(200).json({
+                success: true,
+
+                count: 0,
+
+                routes: [],
+
+                canCreateRoute: true,
+
+                searchRadiusKm,
+
+                message:
+                    "No route found near the selected locations.",
+            });
+        }
+
+        // ==========================================
+        // SUCCESS RESPONSE
+        // ==========================================
 
         return res.status(200).json({
             success: true,
 
             count:
                 formattedRoutes.length,
+
+            canCreateRoute: false,
+
+            searchRadiusKm,
 
             routes:
                 formattedRoutes,
@@ -282,7 +980,7 @@ const searchRoutes = async (req, res) => {
     } catch (error) {
 
         console.error(
-            "Search routes error:",
+            "🔥 Search routes error:",
             error
         );
 
@@ -304,7 +1002,8 @@ const searchRoutes = async (req, res) => {
 
 const getRoutesById = async (req, res) => {
     try {
-        const route = await Route.findById(req.params.id);
+        const route =
+            await Route.findById(req.params.id);
 
         if (!route) {
             return res.status(404).json({
@@ -318,16 +1017,23 @@ const getRoutesById = async (req, res) => {
             message: "Route found",
             route,
         });
+
     } catch (error) {
-        console.error("Get route error:", error);
+        console.error(
+            "Get route error:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "Error fetching route",
-            error: error.message,
+            message:
+                "Error fetching route",
+            error:
+                error.message,
         });
     }
 };
+
 
 // ==========================================
 // GET ALL ROUTES
@@ -335,23 +1041,31 @@ const getRoutesById = async (req, res) => {
 
 const getAllRoutes = async (req, res) => {
     try {
-        const routes = await Route.find();
+        const routes =
+            await Route.find();
 
         return res.status(200).json({
             success: true,
             count: routes.length,
             routes,
         });
+
     } catch (error) {
-        console.error("Get all routes error:", error);
+        console.error(
+            "Get all routes error:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "Error fetching routes",
-            error: error.message,
+            message:
+                "Error fetching routes",
+            error:
+                error.message,
         });
     }
 };
+
 
 // ==========================================
 // UPDATE ROUTE
@@ -359,7 +1073,8 @@ const getAllRoutes = async (req, res) => {
 
 const updateRoute = async (req, res) => {
     try {
-        const route = await Route.findById(req.params.id);
+        const route =
+            await Route.findById(req.params.id);
 
         if (!route) {
             return res.status(404).json({
@@ -368,38 +1083,52 @@ const updateRoute = async (req, res) => {
             });
         }
 
-        // Check ownership: business users can only update their own routes
-        if (req.user.role === 'business' && route.createdBy.toString() !== req.user._id.toString()) {
+        // Business users can only update their own routes
+        if (
+            req.user.role === "business" &&
+            route.createdBy.toString() !==
+                req.user._id.toString()
+        ) {
             return res.status(403).json({
                 success: false,
-                message: "You can only update routes you created",
+                message:
+                    "You can only update routes you created",
             });
         }
 
-        const updatedRoute = await Route.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            {
-                new: true,
-                runValidators: true,
-            }
-        );
+        const updatedRoute =
+            await Route.findByIdAndUpdate(
+                req.params.id,
+                req.body,
+                {
+                    new: true,
+                    runValidators: true,
+                }
+            );
 
         return res.status(200).json({
             success: true,
-            message: "Route updated successfully",
+            message:
+                "Route updated successfully",
             route: updatedRoute,
         });
+
     } catch (error) {
-        console.error("Update route error:", error);
+        console.error(
+            "Update route error:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "Error updating route",
-            error: error.message,
+            message:
+                "Error updating route",
+            error:
+                error.message,
         });
     }
 };
+
 
 // ==========================================
 // DELETE ROUTE
@@ -407,7 +1136,8 @@ const updateRoute = async (req, res) => {
 
 const deleteRoute = async (req, res) => {
     try {
-        const route = await Route.findById(req.params.id);
+        const route =
+            await Route.findById(req.params.id);
 
         if (!route) {
             return res.status(404).json({
@@ -417,25 +1147,41 @@ const deleteRoute = async (req, res) => {
         }
 
         // Delete associated confirmations
-        await Confirmation.deleteMany({ routeId: req.params.id });
+        await Confirmation.deleteMany({
+            routeId: req.params.id,
+        });
 
-        // Delete the route
-        await Route.findByIdAndDelete(req.params.id);
+        // Delete route
+        await Route.findByIdAndDelete(
+            req.params.id
+        );
 
         return res.status(200).json({
             success: true,
-            message: "Route and associated confirmations deleted successfully",
+            message:
+                "Route and associated confirmations deleted successfully",
         });
+
     } catch (error) {
-        console.error("Delete route error:", error);
+        console.error(
+            "Delete route error:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
-            message: "Error deleting route",
-            error: error.message,
+            message:
+                "Error deleting route",
+            error:
+                error.message,
         });
     }
 };
+
+
+// ==========================================
+// EXPORTS
+// ==========================================
 
 module.exports = {
     createRoute,

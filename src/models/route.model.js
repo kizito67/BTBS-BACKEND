@@ -1,29 +1,41 @@
 const mongoose = require("mongoose");
 
+const locationSchema = new mongoose.Schema(
+    {
+        placeId: {
+            type: String,
+            required: true,
+        },
+
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+
+        lat: {
+            type: Number,
+            required: true,
+        },
+
+        lng: {
+            type: Number,
+            required: true,
+        },
+    },
+    { _id: false }
+);
+
 const routeSchema = new mongoose.Schema(
     {
         origin: {
-            placeId: {
-                type: String,
-                required: true,
-            },
-            name: {
-                type: String,
-                required: true,
-                trim: true,
-            },
+            type: locationSchema,
+            required: true,
         },
 
         destination: {
-            placeId: {
-                type: String,
-                required: true,
-            },
-            name: {
-                type: String,
-                required: true,
-                trim: true,
-            },
+            type: locationSchema,
+            required: true,
         },
 
         vehicleType: {
@@ -36,6 +48,7 @@ const routeSchema = new mongoose.Schema(
             placeId: {
                 type: String,
             },
+
             name: {
                 type: String,
                 required: true,
@@ -47,6 +60,7 @@ const routeSchema = new mongoose.Schema(
             placeId: {
                 type: String,
             },
+
             name: {
                 type: String,
                 trim: true,
@@ -57,6 +71,7 @@ const routeSchema = new mongoose.Schema(
             placeId: {
                 type: String,
             },
+
             name: {
                 type: String,
                 required: true,
@@ -120,7 +135,5 @@ routeSchema.index({
     vehicleType: 1,
     confidenceScore: -1,
 });
-
-
 
 module.exports = mongoose.model("Route", routeSchema);
