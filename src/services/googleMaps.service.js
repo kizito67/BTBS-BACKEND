@@ -154,6 +154,219 @@ const searchGooglePlaces = async (query) => {
     return places.map((place) => formatPlace(place)).filter(Boolean);
 };
 
+
+const autocompleteGooglePlaces = async (input) => {
+    assertGoogleApiKey();
+
+    try {
+        const response = await axios.post(
+            `${GOOGLE_PLACES_BASE_URL}/places:autocomplete`,
+            {
+                input,
+
+                languageCode: "en",
+
+                includedRegionCodes: ["ng"],
+
+                locationBias: {
+                    rectangle: {
+                        low: {
+                            latitude: 6.35,
+                            longitude: 3.2,
+                        },
+                        high: {
+                            latitude: 6.75,
+                            longitude: 3.7,
+                        },
+                    },
+                },
+            },
+            {
+                timeout: 10000,
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+                },
+            }
+        );
+
+        const suggestions =
+            response.data.suggestions || [];
+
+        return suggestions
+            .map((suggestion) => {
+                const prediction =
+                    suggestion.placePrediction;
+
+                if (!prediction) {
+                    return null;
+                }
+
+                return {
+                    placeId:
+                        prediction.placeId,
+
+                    name:
+                        prediction
+                            .structuredFormat
+                            ?.mainText
+                            ?.text ||
+                        prediction.text?.text ||
+                        "",
+
+                    description:
+                        prediction
+                            .structuredFormat
+                            ?.secondaryText
+                            ?.text ||
+                        prediction.text?.text ||
+                        "",
+                };
+            })
+            .filter(Boolean);
+
+    } catch (error) {
+        console.error(
+            "Google Places autocomplete failed:",
+            error.response?.data ||
+                error.message
+        );
+
+        const googleStatus =
+            error.response?.status;
+
+        if (googleStatus === 400) {
+            throw createGooglePlacesError(
+                "Google Places rejected the autocomplete request",
+                400
+            );
+        }
+
+        if (
+            googleStatus === 401 ||
+            googleStatus === 403
+        ) {
+            throw createGooglePlacesError(
+                "Google Places API key is invalid or not authorized",
+                503
+            );
+        }
+
+        throw createGooglePlacesError(
+            "Unable to search Google Places"
+        );
+    }
+};
+
+
+
+const getGooglePlaceDetails = async (placeId) => {
+    assertGoogleApiKey();
+
+    try {
+        const response = await axios.get(
+            `${GOOGLE_PLACES_BASE_URL}/places/${encodeURIComponent(
+                placeId
+            )}`,
+            {
+                timeout: 10000,
+
+                headers: {
+                    "X-Goog-Api-Key":
+                        GOOGLE_MAPS_API_KEY,
+
+                    "X-Goog-FieldMask": [
+                        "id",
+                        "displayName",
+                        "formattedAddress",
+                        "location",
+                        "types",
+                    ].join(","),
+                },
+            }
+        );
+
+        const place = response.data;
+
+        const latitude =
+            place.location?.latitude;
+
+        const longitude =
+            place.location?.longitude;
+
+        if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude)
+        ) {
+            throw createGooglePlacesError(
+                "Selected place does not have valid coordinates",
+                404
+            );
+        }
+
+        return {
+            placeId: place.id,
+
+            name:
+                place.displayName?.text ||
+                "",
+
+            address:
+                place.formattedAddress ||
+                "",
+
+            lat: latitude,
+
+            lng: longitude,
+
+            location: {
+                latitude,
+                longitude,
+            },
+
+            types:
+                place.types || [],
+        };
+
+    } catch (error) {
+        console.error(
+            "Google Place details failed:",
+            error.response?.data ||
+                error.message
+        );
+
+        if (error.statusCode) {
+            throw error;
+        }
+
+        const googleStatus =
+            error.response?.status;
+
+        if (googleStatus === 404) {
+            throw createGooglePlacesError(
+                "Place not found",
+                404
+            );
+        }
+
+        if (
+            googleStatus === 401 ||
+            googleStatus === 403
+        ) {
+            throw createGooglePlacesError(
+                "Google Places API key is invalid or not authorized",
+                503
+            );
+        }
+
+        throw createGooglePlacesError(
+            "Unable to retrieve place details"
+        );
+    }
+};
+
+
 const searchNearbyPlaces = async (latitude, longitude, type, radius = 5000) => {
     if (!allowedNearbyTypes.has(type)) {
         throw createGooglePlacesError(
@@ -191,4 +404,6 @@ const searchNearbyPlaces = async (latitude, longitude, type, radius = 5000) => {
 module.exports = {
     searchGooglePlaces,
     searchNearbyPlaces,
+    autocompleteGooglePlaces,
+    getGooglePlaceDetails,
 };

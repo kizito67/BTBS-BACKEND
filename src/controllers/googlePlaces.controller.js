@@ -1,6 +1,8 @@
 const {
     searchGooglePlaces,
     searchNearbyPlaces,
+    autocompleteGooglePlaces,
+    getGooglePlaceDetails,
 } = require("../services/googleMaps.service");
 
 const isValidLatitude = (value) =>
@@ -86,7 +88,92 @@ const searchNearby = async (req, res) => {
     }
 };
 
+const autocompleteLocations = async (req, res) => {
+    try {
+        const input =
+            req.query.input?.trim();
+
+        if (!input || input.length < 2) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Input must contain at least 2 characters",
+            });
+        }
+
+        const places =
+            await autocompleteGooglePlaces(
+                input
+            );
+
+        return res.status(200).json({
+            success: true,
+            count: places.length,
+            places,
+        });
+
+    } catch (error) {
+        console.error(
+            "Autocomplete error:",
+            error
+        );
+
+        return res.status(
+            error.statusCode || 500
+        ).json({
+            success: false,
+            message:
+                error.message ||
+                "Unable to autocomplete locations",
+        });
+    }
+};
+
+
+
+
+const getPlaceDetails = async (req, res) => {
+    try {
+        const { placeId } = req.params;
+
+        if (!placeId) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Place ID is required",
+            });
+        }
+
+        const place =
+            await getGooglePlaceDetails(
+                placeId
+            );
+
+        return res.status(200).json({
+            success: true,
+            place,
+        });
+
+    } catch (error) {
+        console.error(
+            "Place details error:",
+            error
+        );
+
+        return res.status(
+            error.statusCode || 500
+        ).json({
+            success: false,
+            message:
+                error.message ||
+                "Unable to get place details",
+        });
+    }
+};
+
 module.exports = {
     searchLocations,
     searchNearby,
+    autocompleteLocations,
+    getPlaceDetails,
 };
