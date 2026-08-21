@@ -5,7 +5,7 @@ const userController = require("../controllers/user.controller");
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validation.middleware");
 const authValidator = require("../validators/auth.validation");
-const upload = require("../middleware/upload");
+const upload = require("../middleware/upload.middleware");
 
 
 
