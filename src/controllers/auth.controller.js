@@ -6,6 +6,7 @@ const generateToken = require("../utils/generateToken");
 const generateOTP = require("../utils/generateotp");
 const sendEmail = require("../utils/sendEmail");
 const sendEmailBackground = require("../utils/sendEmailBackground");
+const cloudinary = require("../config/cloudinary");
 
 const registerCommuter = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -578,6 +579,280 @@ const verifyResetOtp = async (req, res) => {
     });
   }
 };
+
+// ==========================================
+// UPDATE PROFILE
+// ==========================================
+
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const {
+      businessName,
+      category,
+      businessAddress,
+    } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // ==========================================
+    // VENDOR PROFILE UPDATE
+    // ==========================================
+
+    if (user.role === "business") {
+      if (
+        businessName === undefined &&
+        category === undefined &&
+        businessAddress === undefined
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "No profile fields provided for update",
+        });
+      }
+
+      // Validate values if they are provided
+      if (
+        businessName !== undefined &&
+        (!businessName ||
+          typeof businessName !== "string" ||
+          !businessName.trim())
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Business name must be a valid non-empty string",
+        });
+      }
+
+      if (
+        category !== undefined &&
+        (!category ||
+          typeof category !== "string" ||
+          !category.trim())
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Business category must be a valid non-empty string",
+        });
+      }
+
+      if (
+        businessAddress !== undefined &&
+        businessAddress !== null &&
+        typeof businessAddress !== "string"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Business address must be a string",
+        });
+      }
+
+      // Update User document
+      if (businessName !== undefined) {
+        user.businessName = businessName.trim();
+      }
+
+      if (category !== undefined) {
+        user.category = category.trim();
+      }
+
+      if (businessAddress !== undefined) {
+        user.businessAddress =
+          businessAddress === null
+            ? undefined
+            : businessAddress.trim();
+      }
+
+      await user.save();
+
+      // ==========================================
+      // UPDATE BUSINESS DOCUMENT
+      // ==========================================
+
+      const business = await Business.findOne({
+        ownerId: user._id,
+      });
+
+      if (business) {
+        if (businessName !== undefined) {
+          business.businessName = businessName.trim();
+        }
+
+        if (category !== undefined) {
+          business.category = category.trim();
+        }
+
+        if (businessAddress !== undefined) {
+          business.businessAddress =
+            businessAddress === null
+              ? undefined
+              : businessAddress.trim();
+        }
+
+        await business.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Business profile updated successfully",
+        user: {
+          id: user._id,
+          businessName: user.businessName,
+          category: user.category,
+          businessAddress: user.businessAddress || null,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
+
+    // ==========================================
+    // COMMUTER PROFILE UPDATE
+    // ==========================================
+
+    if (user.role === "commuter") {
+      const { fullName } = req.body;
+
+      if (fullName === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: "No profile fields provided for update",
+        });
+      }
+
+      if (
+        !fullName ||
+        typeof fullName !== "string" ||
+        !fullName.trim()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Full name must be a valid non-empty string",
+        });
+      }
+
+      user.fullName = fullName.trim();
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Profile updated successfully",
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+        },
+      });
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: "Profile update is not available for this account",
+    });
+
+  } catch (error) {
+    console.error("Update profile error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error updating profile",
+      error: error.message,
+    });
+  }
+};
+
+// ==========================================
+// UPLOAD / UPDATE PROFILE PICTURE
+// ==========================================
+
+const uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile picture is required",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // ==========================================
+    // UPLOAD TO CLOUDINARY
+    // ==========================================
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "btbs/profile-pictures",
+        resource_type: "image",
+      },
+
+      async (error, result) => {
+        if (error) {
+          console.error(
+            "Cloudinary profile picture upload error:",
+            error
+          );
+
+          return res.status(500).json({
+            success: false,
+            message: "Failed to upload profile picture",
+          });
+        }
+
+        user.profilePicture = result.secure_url;
+
+        await user.save();
+
+        return res.status(200).json({
+          success: true,
+          message: "Profile picture updated successfully",
+          profilePicture: user.profilePicture,
+          user: {
+            id: user._id,
+            fullName: user.fullName,
+            businessName: user.businessName,
+            email: user.email,
+            category: user.category,
+            businessAddress: user.businessAddress || null,
+            role: user.role,
+            profilePicture: user.profilePicture,
+          },
+        });
+      }
+    );
+
+    uploadStream.end(req.file.buffer);
+
+  } catch (error) {
+    console.error(
+      "Upload profile picture error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Error uploading profile picture",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   registerCommuter,
   registerBusiness,
@@ -589,4 +864,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyResetOtp,
+  updateProfile,
+  uploadProfilePicture,
 };

@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema({
       return this.role === "business";
     },
   },
+  businessAddress: {
+  type: String,
+  trim: true,
+},
   role: {
     type: String,
     enum: ["commuter", "business", "admin"],
@@ -55,6 +59,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  profilePicture: {
+  type: String,
+  default: null,
+},
 
   timestamp: {
     type: Date,
