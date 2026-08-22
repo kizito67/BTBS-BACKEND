@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BTBS - Live Trip Viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body, #map { height: 100%; margin: 0; padding: 0; font-family: sans-serif; }
+  #status {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: white; padding: 8px 16px; border-radius: 20px; font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 1000;
+  }
+  #configBox {
+    position: absolute; bottom: 10px; left: 10px; right: 10px;
+    background: white; padding: 10px; border-radius: 8px; font-size: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 1000;
+  }
+  #configBox input { width: 100%; margin-top: 4px; padding: 6px; box-sizing: border-box; }
+  #configBox button { width: 100%; margin-top: 6px; padding: 6px; }
+</style>
+</head>
+<body>
+  <div id="status">Loading…</div>
+  <div id="map"></div>
+
+  <div id="configBox">
+    <label>API / Socket base URL</label>
+    <input id="apiBase" />
+    <label>Share token</label>
+    <input id="shareToken" />
+    <button onclick="connect()">Connect</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    // Prefill from URL: viewer-test.html?apiBase=...&shareToken=...
+    const params = new URLSearchParams(window.location.search);
+    document.getElementById("apiBase").value = params.get("apiBase") || window.location.origin;
+    document.getElementById("shareToken").value = params.get("shareToken") || "";
+
+    let map, marker;
+    const statusEl = document.getElementById("status");
+
+    function initMap() {
+      map = L.map("map").setView([6.5244, 3.3792], 15); // fallback center: Lagos
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+      marker = L.marker([6.5244, 3.3792]).addTo(map);
+    }
+
+    async function connect() {
+      const API_BASE = document.getElementById("apiBase").value.replace(/\/$/, "");
+      const shareToken = document.getElementById("shareToken").value.trim();
+
+      if (!shareToken) {
+        statusEl.textContent = "Enter a share token";
+        return;
+      }
+
+      if (!map) initMap();
+
+      // Load initial trip info / last known location
+      try {
+        const res = await fetch(`${API_BASE}/api/trips/public/${shareToken}`);
+        const data = await res.json();
+        if (data.success && data.trip?.currentLocation?.latitude !== undefined) {
+          const { latitude, longitude } = data.trip.currentLocation;
+          marker.setLatLng([latitude, longitude]);
+          map.setView([latitude, longitude], 15);
+        }
+      } catch (err) {
+        // non-fatal, socket will still deliver live updates
+      }
+
+      const socket = io(API_BASE);
+
+      socket.on("connect", () => {
+        statusEl.textContent = "Waiting for location…";
+        socket.emit("joinTrip", shareToken);
+      });
+
+      socket.on("tripError", ({ message }) => {
+        statusEl.textContent = "❌ " + message;
+      });
+
+      socket.on("locationUpdated", ({ latitude, longitude }) => {
+        const pos = [latitude, longitude];
+        marker.setLatLng(pos);
+        map.panTo(pos);
+        statusEl.textContent = "🟢 Live";
+      });
+
+      socket.on("locationSharingStopped", () => {
+        statusEl.textContent = "Sharing stopped";
+      });
+
+      socket.on("disconnect", () => {
+        statusEl.textContent = "Reconnecting…";
+      });
+    }
+
+    initMap();
+    // Auto-connect if both values came in via URL
+    if (params.get("shareToken")) connect();
+  </script>
+</body>
+</html>
