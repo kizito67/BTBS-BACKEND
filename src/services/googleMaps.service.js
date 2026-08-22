@@ -400,9 +400,92 @@ const searchNearbyPlaces = async (latitude, longitude, type, radius = 5000) => {
         .sort((firstPlace, secondPlace) => firstPlace.distance - secondPlace.distance);
 };
 
+const GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+
+const vehicleTypeToTravelMode = {
+    bus: "DRIVE",
+    taxi: "DRIVE",
+    keke: "DRIVE",
+};
+
+const getRouteDirections = async (originPlaceId, destinationPlaceId, vehicleType = "bus") => {
+    assertGoogleApiKey();
+
+    try {
+        const response = await axios.post(
+            GOOGLE_ROUTES_URL,
+            {
+                origin: { placeId: originPlaceId },
+                destination: { placeId: destinationPlaceId },
+                travelMode: vehicleTypeToTravelMode[vehicleType] || "DRIVE",
+                polylineQuality: "HIGH_QUALITY",
+                languageCode: "en",
+                regionCode: "NG",
+            },
+            {
+                timeout: 10000,
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+                    "X-Goog-FieldMask": [
+                        "routes.polyline.encodedPolyline",
+                        "routes.legs.startLocation",
+                        "routes.legs.endLocation",
+                        "routes.distanceMeters",
+                        "routes.duration",
+                    ].join(","),
+                },
+            }
+        );
+
+        const route = response.data.routes?.[0];
+
+        if (!route) {
+            throw createGooglePlacesError("No route found between these points", 404);
+        }
+
+        const startLatLng = route.legs?.[0]?.startLocation?.latLng;
+        const endLatLng = route.legs?.[route.legs.length - 1]?.endLocation?.latLng;
+
+        return {
+            encodedPolyline: route.polyline?.encodedPolyline || null,
+            distanceMeters: route.distanceMeters ?? null,
+            duration: route.duration || null,
+            originLocation: startLatLng
+                ? { latitude: startLatLng.latitude, longitude: startLatLng.longitude }
+                : null,
+            destinationLocation: endLatLng
+                ? { latitude: endLatLng.latitude, longitude: endLatLng.longitude }
+                : null,
+        };
+    } catch (error) {
+        console.error(
+            "Google Routes request failed:",
+            error.response?.data || error.message
+        );
+
+        if (error.statusCode) throw error;
+
+        const googleStatus = error.response?.status;
+
+        if (googleStatus === 400) {
+            throw createGooglePlacesError("Google Routes rejected the request parameters", 400);
+        }
+
+        if (googleStatus === 401 || googleStatus === 403) {
+            throw createGooglePlacesError(
+                "Google Routes API key is invalid or not authorized",
+                503
+            );
+        }
+
+        throw createGooglePlacesError("Unable to fetch directions");
+    }
+};
 module.exports = {
     searchGooglePlaces,
     searchNearbyPlaces,
     autocompleteGooglePlaces,
     getGooglePlaceDetails,
+    getRouteDirections,
 };

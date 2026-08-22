@@ -15,6 +15,7 @@ const {
     getPublicTrip,
     updateTripLocation,
     getTripLocation,
+    getTripDirections,
 } = require("../controllers/trip.controller");
 
 
@@ -68,6 +69,11 @@ router.patch(
 router.get(
     "/public/:shareToken",
     getPublicTrip
+);
+
+router.get(
+    "/public/:shareToken/directions",
+    getTripDirections
 );
 
 

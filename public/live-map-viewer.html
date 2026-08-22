@@ -35,21 +35,94 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script>
+    // Standard Google encoded-polyline decoder
+    function decodePolyline(encoded) {
+      let points = [], index = 0, lat = 0, lng = 0;
+      while (index < encoded.length) {
+        let b, shift = 0, result = 0;
+        do {
+          b = encoded.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+        shift = 0; result = 0;
+        do {
+          b = encoded.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+
+        points.push([lat / 1e5, lng / 1e5]);
+      }
+      return points;
+    }
+
     // Prefill from URL: viewer-test.html?apiBase=...&shareToken=...
     const params = new URLSearchParams(window.location.search);
     document.getElementById("apiBase").value = params.get("apiBase") || window.location.origin;
     document.getElementById("shareToken").value = params.get("shareToken") || "";
 
-    let map, marker;
+    let map, liveMarker, originMarker, destMarker, routeLine;
     const statusEl = document.getElementById("status");
+
+    const liveIcon = L.divIcon({
+      className: "",
+      html: '<div style="background:#4285F4;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+      iconSize: [16, 16],
+    });
+    const originIcon = L.divIcon({
+      className: "",
+      html: '<div style="background:#34A853;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+      iconSize: [14, 14],
+    });
+    const destIcon = L.divIcon({
+      className: "",
+      html: '<div style="background:#EA4335;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>',
+      iconSize: [14, 14],
+    });
 
     function initMap() {
       map = L.map("map").setView([6.5244, 3.3792], 15); // fallback center: Lagos
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
-      marker = L.marker([6.5244, 3.3792]).addTo(map);
+      liveMarker = L.marker([6.5244, 3.3792], { icon: liveIcon }).addTo(map);
     }
+
+    async function loadDirections(API_BASE, shareToken) {
+      try {
+        const res = await fetch(`${API_BASE}/api/trips/public/${shareToken}/directions`);
+        const data = await res.json();
+
+        if (!data.success || !data.directions?.encodedPolyline) {
+          log("No route line available yet");
+          return;
+        }
+
+        const { encodedPolyline, originLocation, destinationLocation } = data.directions;
+        const path = decodePolyline(encodedPolyline);
+
+        routeLine = L.polyline(path, { color: "#4285F4", weight: 5, opacity: 0.8 }).addTo(map);
+
+        if (originLocation) {
+          originMarker = L.marker([originLocation.latitude, originLocation.longitude], { icon: originIcon })
+            .addTo(map).bindPopup("Origin");
+        }
+        if (destinationLocation) {
+          destMarker = L.marker([destinationLocation.latitude, destinationLocation.longitude], { icon: destIcon })
+            .addTo(map).bindPopup("Destination");
+        }
+
+        map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+      } catch (err) {
+        // non-fatal — live tracking still works without the route line
+      }
+    }
+
+    function log(msg) { statusEl.title = msg; }
 
     async function connect() {
       const API_BASE = document.getElementById("apiBase").value.replace(/\/$/, "");
@@ -62,14 +135,15 @@
 
       if (!map) initMap();
 
-      // Load initial trip info / last known location
+      await loadDirections(API_BASE, shareToken);
+
+      // Load last known live location
       try {
         const res = await fetch(`${API_BASE}/api/trips/public/${shareToken}`);
         const data = await res.json();
         if (data.success && data.trip?.currentLocation?.latitude !== undefined) {
           const { latitude, longitude } = data.trip.currentLocation;
-          marker.setLatLng([latitude, longitude]);
-          map.setView([latitude, longitude], 15);
+          liveMarker.setLatLng([latitude, longitude]);
         }
       } catch (err) {
         // non-fatal, socket will still deliver live updates
@@ -88,7 +162,7 @@
 
       socket.on("locationUpdated", ({ latitude, longitude }) => {
         const pos = [latitude, longitude];
-        marker.setLatLng(pos);
+        liveMarker.setLatLng(pos);
         map.panTo(pos);
         statusEl.textContent = "🟢 Live";
       });

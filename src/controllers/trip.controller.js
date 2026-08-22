@@ -538,6 +538,40 @@ const getTripLocation = async (req, res) => {
     }
 };
 
+const getTripDirections = async (req, res) => {
+    try {
+        const trip = await Trip.findOne({
+            shareToken: req.params.shareToken,
+        }).select("origin destination vehicleType");
+
+        if (!trip) {
+            return res.status(404).json({
+                success: false,
+                message: "Trip not found",
+            });
+        }
+
+        const directions = await getRouteDirections(
+            trip.origin.placeId,
+            trip.destination.placeId,
+            trip.vehicleType
+        );
+
+        return res.status(200).json({
+            success: true,
+            directions,
+        });
+
+    } catch (error) {
+        console.error("Get trip directions error:", error);
+
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Error fetching trip directions",
+        });
+    }
+};
+
 module.exports = {
     createTrip,
     getTrip,
@@ -547,4 +581,5 @@ module.exports = {
     getPublicTrip,
     updateTripLocation,
     getTripLocation,
+    getTripDirections,
 };
