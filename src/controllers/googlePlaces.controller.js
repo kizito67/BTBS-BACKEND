@@ -3,6 +3,7 @@ const {
     searchNearbyPlaces,
     autocompleteGooglePlaces,
     getGooglePlaceDetails,
+    reverseGeocodeGoogle,
 } = require("../services/googleMaps.service");
 
 const isValidLatitude = (value) =>
@@ -170,10 +171,53 @@ const getPlaceDetails = async (req, res) => {
         });
     }
 };
+const reverseGeocode = async (req, res) => {
+    try {
+        const latitude = Number(req.query.lat);
+        const longitude = Number(req.query.lng);
+
+        if (
+            !isValidLatitude(latitude) ||
+            !isValidLongitude(longitude)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Valid latitude and longitude are required",
+            });
+        }
+
+        const location = await reverseGeocodeGoogle(
+            latitude,
+            longitude
+        );
+
+        return res.status(200).json({
+            success: true,
+            location,
+        });
+
+    } catch (error) {
+        console.error(
+            "Reverse geocoding error:",
+            error
+        );
+
+        return res.status(
+            error.statusCode || 500
+        ).json({
+            success: false,
+            message:
+                error.message ||
+                "Unable to reverse geocode location",
+        });
+    }
+};
 
 module.exports = {
     searchLocations,
     searchNearby,
     autocompleteLocations,
     getPlaceDetails,
+    reverseGeocode,
 };

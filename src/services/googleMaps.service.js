@@ -482,10 +482,93 @@ const getRouteDirections = async (originPlaceId, destinationPlaceId, vehicleType
         throw createGooglePlacesError("Unable to fetch directions");
     }
 };
+const reverseGeocodeGoogle = async (latitude, longitude) => {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180
+    ) {
+        const error = new Error("Invalid latitude or longitude");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+    if (!apiKey) {
+        const error = new Error(
+            "Google Maps API key is not configured"
+        );
+        error.statusCode = 500;
+        throw error;
+    }
+
+    const url =
+        `https://geocode.googleapis.com/v4/geocode/location/` +
+        `${lat},${lng}?key=${encodeURIComponent(apiKey)}`;
+
+    const response = await fetch(url);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error("Google reverse geocoding error:", data);
+
+        const error = new Error(
+            data.error?.message ||
+            "Google reverse geocoding failed"
+        );
+
+        error.statusCode = response.status;
+
+        throw error;
+    }
+
+    if (!data.results || data.results.length === 0) {
+        const error = new Error(
+            "No address could be found for these coordinates"
+        );
+
+        error.statusCode = 404;
+
+        throw error;
+    }
+
+    const result = data.results[0];
+
+    return {
+        placeId: result.placeId || null,
+
+        formattedAddress:
+            result.formattedAddress || null,
+
+        name:
+            result.formattedAddress || "Current Location",
+
+        latitude:
+            result.location?.latitude ?? lat,
+
+        longitude:
+            result.location?.longitude ?? lng,
+
+        addressComponents:
+            result.addressComponents || [],
+
+        types:
+            result.types || [],
+    };
+};
 module.exports = {
     searchGooglePlaces,
     searchNearbyPlaces,
     autocompleteGooglePlaces,
     getGooglePlaceDetails,
     getRouteDirections,
+    reverseGeocodeGoogle,
 };

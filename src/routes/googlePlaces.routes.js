@@ -5,6 +5,7 @@ const {
     searchNearby,
     autocompleteLocations,
     getPlaceDetails,
+    reverseGeocode,
 } = require("../controllers/googlePlaces.controller");
 
 const router = express.Router();
@@ -47,6 +48,12 @@ router.get(
 router.get(
     "/nearby",
     searchNearby
+);
+
+
+router.get(
+    "/reverse-geocode",
+    reverseGeocode
 );
 
 
