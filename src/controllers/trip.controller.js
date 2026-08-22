@@ -1,6 +1,6 @@
 const Trip = require("../models/trip.model");
 const Route = require("../models/route.model");
-
+const { getRouteDirections } = require("../services/googleMaps.service");
 
 // ==========================================
 // CREATE TRIP
