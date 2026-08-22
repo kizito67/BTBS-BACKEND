@@ -17,7 +17,6 @@ const PLACE_FIELD_MASK = [
 const allowedNearbyTypes = new Set([
     "hospital",
     "police",
-    "market",
 ]);
 
 const createGooglePlacesError = (message, statusCode = 502) => {
@@ -370,7 +369,7 @@ const getGooglePlaceDetails = async (placeId) => {
 const searchNearbyPlaces = async (latitude, longitude, type, radius = 5000) => {
     if (!allowedNearbyTypes.has(type)) {
         throw createGooglePlacesError(
-            "Invalid place type. Use hospital, police, or market.",
+            "Invalid place type. Use hospital, police.",
             400
         );
     }
