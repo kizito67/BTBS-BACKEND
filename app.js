@@ -40,6 +40,7 @@ app.use(
     },
   })
 );
+app.use(express.static("public"));
 
 // ==========================================
 // API DOCUMENTATION
