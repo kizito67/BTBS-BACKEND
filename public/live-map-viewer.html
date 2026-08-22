@@ -18,10 +18,16 @@
   }
   #configBox input { width: 100%; margin-top: 4px; padding: 6px; box-sizing: border-box; }
   #configBox button { width: 100%; margin-top: 6px; padding: 6px; }
+  #debugLog {
+    position: absolute; top: 50px; left: 10px; right: 10px; max-height: 30%;
+    background: rgba(0,0,0,0.85); color: #0f0; font-family: monospace; font-size: 11px;
+    padding: 8px; border-radius: 6px; overflow-y: auto; z-index: 1000; white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
   <div id="status">Loading…</div>
+  <div id="debugLog"></div>
   <div id="map"></div>
 
   <div id="configBox">
@@ -113,16 +119,21 @@
         }
         if (destinationLocation) {
           destMarker = L.marker([destinationLocation.latitude, destinationLocation.longitude], { icon: destIcon })
-            .addTo(map).bindPopup("Destination");
+            .addTo(map).bindPopup("Destination").openPopup();
         }
 
-        map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+        map.fitBounds(routeLine.getBounds(), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 160] });
       } catch (err) {
         // non-fatal — live tracking still works without the route line
       }
     }
 
-    function log(msg) { statusEl.title = msg; }
+    function log(msg) {
+      const el = document.getElementById("debugLog");
+      const time = new Date().toLocaleTimeString();
+      el.textContent += `[${time}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
 
     async function connect() {
       const API_BASE = document.getElementById("apiBase").value.replace(/\/$/, "");
@@ -150,29 +161,40 @@
       }
 
       const socket = io(API_BASE);
+      log("Connecting socket to " + API_BASE + " ...");
 
       socket.on("connect", () => {
         statusEl.textContent = "Waiting for location…";
+        log("✅ Socket connected: " + socket.id);
         socket.emit("joinTrip", shareToken);
+        log("➡️ Emitted joinTrip(" + shareToken + ")");
+      });
+
+      socket.on("connect_error", (err) => {
+        log("❌ connect_error: " + err.message);
       });
 
       socket.on("tripError", ({ message }) => {
         statusEl.textContent = "❌ " + message;
+        log("❌ tripError: " + message);
       });
 
-      socket.on("locationUpdated", ({ latitude, longitude }) => {
+      socket.on("locationUpdated", ({ latitude, longitude, updatedAt }) => {
         const pos = [latitude, longitude];
         liveMarker.setLatLng(pos);
         map.panTo(pos);
         statusEl.textContent = "🟢 Live";
+        log(`📍 locationUpdated: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} @ ${updatedAt}`);
       });
 
       socket.on("locationSharingStopped", () => {
         statusEl.textContent = "Sharing stopped";
+        log("🛑 locationSharingStopped");
       });
 
-      socket.on("disconnect", () => {
+      socket.on("disconnect", (reason) => {
         statusEl.textContent = "Reconnecting…";
+        log("🔌 disconnected: " + reason);
       });
     }
 
