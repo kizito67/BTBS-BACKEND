@@ -1,90 +1,267 @@
-# BTBS
+# Beyond the Bus Stop (BTBS)
 
-BTBS is an Express-based backend API for user authentication, route management, confirmations, and safety point tracking. It uses MongoDB for persistence, JWT for authentication, and Nodemailer for email-based OTP operations.
+Beyond the Bus Stop is a transportation platform that helps commuters discover routes, estimate fares, evaluate route confidence, report actual fares, discover nearby businesses, and share live trip locations with trusted contacts.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture Overview](#architecture-overview)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [API Reference](#api-reference)
+- [Live Location Tracking](#live-location-tracking)
+- [Trip Sharing](#trip-sharing)
+- [Confidence Score](#confidence-score)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+
+---
 
 ## Features
 
-- User registration and login with OTP verification
-- JWT-protected routes and role-based authorization
-- CRUD operations for route records
-- Confirmation records for routes
-- Safety point lookup and admin creation
-- Email sending through Gmail for OTP and notifications
+- 🔍 **Route discovery** — search known transportation routes between two locations
+- 💰 **Fare estimation & confirmation** — commuters report actual fares, which feed a live confidence score
+- 📍 **Google Places integration** — location search, autocomplete, and nearby safety points (hospitals, police, markets)
+- 🧭 **Live trip sharing** — generate a public link that shows a trusted contact your live location on a map, with the road route drawn between origin and destination
+- 🏪 **Business/vendor listings** — vendors create public listings with photos (Cloudinary)
+- 🔐 **JWT auth with role-based access** — commuter, business/vendor, admin
 
-## Requirements
+---
 
-- Node.js 18+ (or compatible modern Node.js)
-- MongoDB database
+## Tech Stack
 
-## Installation
+| Layer | Technology |
+|---|---|
+| Runtime / Framework | Node.js, Express.js |
+| Database | MongoDB + Mongoose |
+| Auth | JWT |
+| Validation | Express Validator |
+| Real-time | Socket.IO |
+| Location services | Google Places API, Google Routes API |
+| Media storage | Cloudinary |
+| Logging | Morgan |
+
+---
+
+## Architecture Overview
+
+### Layered backend architecture
+
+```mermaid
+flowchart TD
+    A[Frontend] --> B[Routes]
+    B --> C["Middleware (Auth · Validation · CORS)"]
+    C --> D[Controllers]
+    D --> E["Services (Google Places · Routes · Cloudinary)"]
+    E --> F["Models (Mongoose Schemas)"]
+    F --> G[(MongoDB)]
+```
+
+### End-to-end system overview
+
+```mermaid
+flowchart TD
+    APP[BTBS App] --> GP[Google Places]
+    APP --> REST[BTBS REST API]
+    APP --> SOCK[Socket.IO]
+
+    REST --> LOC[Locations]
+    REST --> RT[Routes]
+    REST --> FARE[Fares]
+    REST --> TRIP[Trips]
+    SOCK --> LIVE[Live Tracking]
+
+    LOC --> DB[(MongoDB)]
+    RT --> DB
+    FARE --> DB
+    TRIP --> DB
+
+    DB --> COMM[Commuters]
+    DB --> VEND[Vendors]
+
+    COMM --> FRD[Fare / Route Data]
+    FRD --> DS[Data Science]
+
+    VEND --> LIST[Listings]
+    LIST --> CLOUD[Cloudinary]
+```
+
+### Live location tracking flow
+
+```mermaid
+sequenceDiagram
+    participant Phone as Commuter's Phone
+    participant API as BTBS API
+    participant DB as MongoDB
+    participant IO as Socket.IO
+    participant Watcher as Trip Watcher (share link)
+
+    Phone->>API: locationUpdate {shareToken, lat, lng}
+    API->>DB: save currentLocation
+    API->>IO: emit locationUpdated to room trip:<shareToken>
+    IO->>Watcher: locationUpdated {lat, lng, updatedAt}
+```
+
+---
+
+## Getting Started
 
 ```bash
+git clone <this-repo>
+cd btbs-backend
 npm install
-```
-
-## Environment
-
-Copy `.env.example` to `.env` and fill in your values.
-
-```bash
-cp .env.example .env
-```
-
-### Required variables
-
-- `PORT` - Port the server listens on (default `5000`)
-- `MONGO_URI` - MongoDB connection string
-- `JWT_SECRET` - Secret used to sign JWT tokens
-- `JWT_EXPIRES_IN` - JWT expiration time (e.g. `1d`, `7d`)
-- `EMAIL_USER` - Gmail address used to send OTP emails
-- `EMAIL_PASS` - Gmail app password or account password
-
-## Run the app
-
-```bash
+cp .env.example .env   # fill in real values, see below
 npm run dev
 ```
 
-The server starts at `http://localhost:5000` by default.
+Server runs on `http://localhost:<PORT>` (REST + Socket.IO on the same server/port).
 
-## API Endpoints
+**Quick backend sanity check** (no frontend needed):
+```bash
+node test-socket.js     # simulates the sharer — joins a trip, sends a fake location
+node test-tracker.js    # simulates a watcher — joins the same trip, listens
+```
+If `test-tracker.js` prints `📍 LIVE LOCATION RECEIVED`, the whole real-time pipeline is confirmed working.
 
-### Authentication
+---
 
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Log in and request OTP
-- `POST /api/auth/verify-otp` - Verify OTP and receive JWT
-- `POST /api/auth/resend-otp` - Resend OTP
-- `GET /api/auth/profile` - Get authenticated user profile
+## Environment Variables
 
-### Routes
+| Variable | Purpose |
+|---|---|
+| `PORT` | Server port |
+| `MONGO_URI` | MongoDB connection string |
+| `JWT_SECRET` | JWT signing secret |
+| `JWT_EXPIRES_IN` | Token expiry (e.g. `1d`) |
+| `GOOGLE_MAPS_API_KEY` | Google Places **and** Routes API key (enable both APIs in Google Cloud Console) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary account |
+| `CLOUDINARY_API_KEY` | Cloudinary auth |
+| `CLOUDINARY_API_SECRET` | Cloudinary auth |
+| `EMAIL_USER` / `EMAIL_PASS` | Gmail credentials for OTP emails |
+| `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` | Brevo transactional email |
 
-- `GET /api/routes` - Get all routes
-- `GET /api/routes/search` - Search routes
-- `GET /api/routes/:id` - Get route by ID
-- `POST /api/routes/create` - Create route (protected, `business` or `admin`)
-- `PUT /api/routes/:id` - Update route (protected, `business` or `admin`)
-- `DELETE /api/routes/:id` - Delete route (protected, `admin`)
+---
 
-### Confirmations
+## API Reference
 
-- `GET /api/confirmations/routes/:routeId` - Get confirmations for a route
-- `POST /api/confirmations/:routeId` - Create confirmation (protected)
-- `PATCH /api/confirmations/:confirmationId` - Update confirmation (protected)
-- `DELETE /api/confirmations/:confirmationId` - Delete confirmation (protected, `admin`)
+| Method | Endpoint | Purpose | Auth |
+|---|---|---|---|
+| POST | `/api/auth/...` | Register / login | — |
+| GET | `/api/routes/search` | Search routes | — |
+| GET | `/api/routes/:id` | Get a route | — |
+| GET | `/api/routes` | List routes | — |
+| POST | `/api/routes/create` | Create route | ✅ Business/Admin |
+| PUT | `/api/routes/:id` | Update route | ✅ |
+| DELETE | `/api/routes/:id` | Delete route | ✅ Admin |
+| POST | `/api/confirmations` | Submit fare confirmation | ✅ |
+| GET | `/api/confirmations/routes/:routeId` | Get route confirmations | — |
+| PATCH | `/api/confirmations/:confirmationId` | Update confirmation | ✅ |
+| DELETE | `/api/confirmations/:confirmationId` | Delete confirmation | ✅ |
+| GET | `/api/locations/search` | Google location search | — |
+| GET | `/api/locations/nearby` | Nearby places (hospitals, police, markets) | — |
+| POST | `/api/trips` | Create trip | ✅ |
+| PATCH | `/api/trips/:tripId/start` | Start trip | ✅ |
+| PATCH | `/api/trips/:tripId/end` | End trip | ✅ |
+| GET | `/api/trips/:tripId/share` | Get share link + WhatsApp message | ✅ |
+| GET | `/api/trips/public/:shareToken` | Public trip view (no auth) | — |
+| GET | `/api/trips/public/:shareToken/directions` | Road route polyline between origin/destination | — |
+| PATCH | `/api/trips/:tripId/location` | Update trip location (REST fallback) | ✅ |
+| POST | `/api/listings` | Create business listing | ✅ Vendor |
+| GET | `/api/listings/my` | Vendor's own listings | ✅ |
+| GET | `/api/listings` | Public listing discovery | — |
+| GET | `/api/listings/:listingId` | Listing details | — |
+| POST | `/api/upload` | Upload photos (multipart) | ✅ |
 
-### Safety Points
+---
 
-- `GET /api/safety-points` - Get safety points
-- `GET /api/safety-points/category/:category` - Get safety points by category
-- `POST /api/safety-points` - Create safety point (protected, `admin`)
+## Live Location Tracking
 
-## Notes
+Real-time tracking runs over Socket.IO, attached to the same HTTP server as the REST API. Each shared trip is a room named `trip:<shareToken>`.
 
-- Authentication uses Bearer tokens in the `Authorization` header.
-- Email sending is configured for Gmail in `src/utils/sendEmail.js`.
-- Validation is handled through route-specific validator middleware.
+**Server events:**
 
-## License
+| Event (client → server) | Payload | Purpose |
+|---|---|---|
+| `joinTrip` | `shareToken` | Watcher joins a trip's room, receives last known position immediately |
+| `locationUpdate` | `{ shareToken, latitude, longitude }` | Sharer broadcasts a new position |
+| `stopLocationSharing` | `shareToken` | Sharer ends tracking |
 
-This project uses the ISC license.
+| Event (server → client) | Payload | Purpose |
+|---|---|---|
+| `locationUpdated` | `{ tripId, latitude, longitude, updatedAt }` | Broadcast to all watchers in the room |
+| `tripError` | `{ message }` | Trip not found / not active |
+| `locationSharingStopped` | — | Sharer ended the trip |
+
+Location can also be pushed via REST (`PATCH /api/trips/:tripId/location`) — it updates MongoDB and emits the same `locationUpdated` socket event, so either path keeps watchers in sync.
+
+**Route visualization:** `GET /api/trips/public/:shareToken/directions` calls the Google Routes API using the trip's stored origin/destination `placeId`s and returns an encoded polyline plus origin/destination coordinates, so the frontend can draw the road route alongside the live-moving marker.
+
+> ⚠️ **Known gap:** the frontend's location-sending code must call something that repeats (`watchPosition`, or a repeating interval) — a single one-shot location call will only ever send the starting position.
+
+---
+
+## Trip Sharing
+
+```mermaid
+flowchart TD
+    A[User starts trip] --> B[BTBS generates share token]
+    B --> C["User taps 'Share Trip'"]
+    C --> D[WhatsApp opens with pre-filled message]
+    D --> E[Recipient receives tracking link]
+    E --> F[Recipient opens link — no account needed]
+```
+
+Sharing is WhatsApp-based rather than an internal messaging system, keeping the MVP flow lightweight. Recipients access the trip via a public, unauthenticated `shareToken` link.
+
+---
+
+## Confidence Score
+
+Route confidence is a weighted composite of six factors:
+
+| Component | Weight | Basis |
+|---|---|---|
+| Report Strength | 20% | `report_count ÷ 20`, capped at 100% |
+| Fare Agreement | 30% | % of reports within ±10% of the median fare |
+| Data Freshness | 15% | Recency of most recent report (168-hour horizon) |
+| Fare Fairness | 15% | 1–5 rating rescaled: `(avg − 1) ÷ 4 × 100` |
+| Overcharge Evidence | 10% | % of reports indicating overcharge (fewer = stronger) |
+| Ease Finding Transport | 10% | 1–5 rating rescaled: `(avg − 1) ÷ 4 × 100` |
+
+---
+
+## Project Structure
+
+```
+BTBS-BACKEND
+├── app.js
+├── public/                  # static test/viewer pages (live-map-viewer.html, sharer-test.html)
+├── src
+│   ├── config
+│   ├── controllers
+│   ├── middleware
+│   ├── models
+│   ├── routes
+│   ├── services          # googleMaps.service.js — Places + Routes API calls
+│   └── validators
+├── test-socket.js           # simulates trip sharer for local testing
+├── test-tracker.js          # simulates trip watcher for local testing
+└── .env
+```
+
+---
+
+## Roadmap
+
+- [ ] Confirm frontend location-sending uses continuous tracking (`watchPosition`/interval), not a one-shot call
+- [ ] Render live location + route line + origin/destination markers on the production map
+- [ ] Complete two-field origin/destination search experience
+- [ ] Nearest-route matching using selected coordinates
+- [ ] End-to-end trip testing under real network conditions
+- [ ] Replace temporary confidence calculation with final Data Science model, where not already complete
+- [ ] Security & validation review
+- [ ] Automated test coverage
+- [ ] Production deployment hardening
