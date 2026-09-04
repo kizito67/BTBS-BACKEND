@@ -1,4 +1,4 @@
-8# Beyond the Bus Stop (BTBS)
+# Beyond the Bus Stop (BTBS)
 
 Beyond the Bus Stop is a transportation platform that helps commuters discover routes, estimate fares, evaluate route confidence, report actual fares, discover nearby businesses, and share live trip locations with trusted contacts.
 
@@ -51,19 +51,19 @@ Beyond the Bus Stop is a transportation platform that helps commuters discover r
 ### Layered backend architecture
 
 ```mermaid
-flowchart TD
-    A[Frontend] --> B[Routes]
-    B --> C["Middleware (Auth · Validation · CORS)"]
-    C --> D[Controllers]
-    D --> E["Services (Google Places · Routes · Cloudinary)"]
-    E --> F["Models (Mongoose Schemas)"]
-    F --> G[(MongoDB)]
+graph TD
+    Frontend[Frontend - React / Web App] --> Routes[Routes]
+    Routes --> Middleware[Middleware - Auth, Validation, CORS]
+    Middleware --> Controllers[Controllers]
+    Controllers --> Services[Services - Google Places, Routes, Cloudinary]
+    Services --> Models[Models - Mongoose Schemas]
+    Models --> DB[(MongoDB)]
 ```
 
 ### End-to-end system overview
 
 ```mermaid
-flowchart TD
+graph TD
     APP[BTBS App] --> GP[Google Places]
     APP --> REST[BTBS REST API]
     APP --> SOCK[Socket.IO]
@@ -92,17 +92,11 @@ flowchart TD
 ### Live location tracking flow
 
 ```mermaid
-sequenceDiagram
-    participant Phone as Commuter's Phone
-    participant API as BTBS API
-    participant DB as MongoDB
-    participant IO as Socket.IO
-    participant Watcher as Trip Watcher (share link)
-
-    Phone->>API: locationUpdate {shareToken, lat, lng}
-    API->>DB: save currentLocation
-    API->>IO: emit locationUpdated to room trip:<shareToken>
-    IO->>Watcher: locationUpdated {lat, lng, updatedAt}
+graph TD
+    Phone[Commuter Phone - GPS] -->|locationUpdate: shareToken, lat, lng| API[BTBS API]
+    API -->|Save currentLocation| DB[(MongoDB)]
+    API -->|Emit locationUpdated| Room[Socket.IO Room - trip shareToken]
+    Room -->|locationUpdated: lat, lng, updatedAt| Watcher[Trip Watcher - Share Link]
 ```
 
 ---
@@ -206,12 +200,12 @@ Location can also be pushed via REST (`PATCH /api/trips/:tripId/location`) — i
 ## Trip Sharing
 
 ```mermaid
-flowchart TD
+graph TD
     A[User starts trip] --> B[BTBS generates share token]
-    B --> C["User taps 'Share Trip'"]
+    B --> C[User taps Share Trip]
     C --> D[WhatsApp opens with pre-filled message]
     D --> E[Recipient receives tracking link]
-    E --> F[Recipient opens link — no account needed]
+    E --> F[Recipient opens link, no account needed]
 ```
 
 Sharing is WhatsApp-based rather than an internal messaging system, keeping the MVP flow lightweight. Recipients access the trip via a public, unauthenticated `shareToken` link.
@@ -265,17 +259,3 @@ BTBS-BACKEND
 - [ ] Security & validation review
 - [ ] Automated test coverage
 - [ ] Production deployment hardening
-
-
-graph TD
-    User[Developer / User] -->|Submit Issue| ReactUI[React + TS Frontend]
-    ReactUI -->|REST API| FastAPI[FastAPI Backend Engine]
-    FastAPI -->|Preprocess Text| Preprocessor[TextPreprocessorTransformer]
-    Preprocessor -->|Vectorize| TFIDF[TF-IDF N-gram Vectorizer]
-    TFIDF -->|Inference| Model[Linear SVM Classifier Pipeline]
-    FastAPI -->|Calculate Score| Quality[Quality Scoring Engine]
-    FastAPI -->|Side-by-Side Diff| Compare[Issue Comparison Engine]
-    FastAPI -->|Check Health| Health[Model Health & Shift Monitor]
-    FastAPI -->|Persist Data| DB[(SQLite / PostgreSQL DB)]
-    Model -->|Return Confidence & XAI| FastAPI
-    FastAPI -->|JSON Response| ReactUI
