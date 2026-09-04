@@ -1,4 +1,4 @@
-# Beyond the Bus Stop (BTBS)
+8# Beyond the Bus Stop (BTBS)
 
 Beyond the Bus Stop is a transportation platform that helps commuters discover routes, estimate fares, evaluate route confidence, report actual fares, discover nearby businesses, and share live trip locations with trusted contacts.
 
@@ -265,3 +265,17 @@ BTBS-BACKEND
 - [ ] Security & validation review
 - [ ] Automated test coverage
 - [ ] Production deployment hardening
+
+
+graph TD
+    User[Developer / User] -->|Submit Issue| ReactUI[React + TS Frontend]
+    ReactUI -->|REST API| FastAPI[FastAPI Backend Engine]
+    FastAPI -->|Preprocess Text| Preprocessor[TextPreprocessorTransformer]
+    Preprocessor -->|Vectorize| TFIDF[TF-IDF N-gram Vectorizer]
+    TFIDF -->|Inference| Model[Linear SVM Classifier Pipeline]
+    FastAPI -->|Calculate Score| Quality[Quality Scoring Engine]
+    FastAPI -->|Side-by-Side Diff| Compare[Issue Comparison Engine]
+    FastAPI -->|Check Health| Health[Model Health & Shift Monitor]
+    FastAPI -->|Persist Data| DB[(SQLite / PostgreSQL DB)]
+    Model -->|Return Confidence & XAI| FastAPI
+    FastAPI -->|JSON Response| ReactUI
